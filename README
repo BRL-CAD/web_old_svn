@@ -15,22 +15,58 @@ installation module.  The primarly intent of the website module is to
 provide web developers with an isolated location for the website
 sourcecode to live version-controlled.
 
+See the NEWS file for more details on the latest events regarding the
+BRL-CAD website.
 
-INSTALLATION
 
-At most, it should be sufficient to point a web root url to the
-htdocs/ directory.  There should be no preprocessing or preparation of
-the website sourcecode for it to be used, as long as the required web
-server components are installed.  The primary BRL-CAD website will
-automatically update to the version stored within this module
-periodically (nightly).
+Installation
+============
+
+Assuming that there is a web server installed already, and that php is
+properly configured, it should be sufficient to point a web root url
+to the htdocs/ directory to get the website up and running.  There
+should be no preprocessing or preparation of the website sourcecode
+necessary for it to be useable.  The primary BRL-CAD website should
+automatically be updating to the latest version stored within this
+module on a daily basis.
 
 Presently, the sole requirement for install is PHP 4 and a capable web
-server such as Apache.
+server such as Apache.  The website may talk to a local SQL database
+at some point in the future, but there should be no assumptions of a
+need to make an external network connection.
 
 Scripts to install the website in a SourceForge-similar arrangement
-are included in the misc/ directory.  This includes a cron job and a
-run script.  Installation is described in more detail in the INSTALL
-file.
+are included in the misc/ directory.  This includes a cron job and an
+install script.
+
+Installation is described in more detail in the INSTALL file.
 
 
+Contributing
+============
+
+If you'd like to get involved in making improvements to the BRL-CAD
+website, please see the DEVINFO file.  It contains more details on the
+do's and don'ts and what is expected of the website developers.
+
+
+Contact
+=======
+
+Please contact one of the active developers listed in the AUTHORS
+file, or interact with the developers on the Sourceforge project site.
+There are forums and newsgroups available to ask questions, make
+suggestions, or to make comments.
+
+http://sf.net/projects/brlcad
+
+Some of the BRL-CAD developers are also available via IRC in #brlcad
+on the irc.freenode.net network.  See http://freenode.net/ and
+http://www.irc.org/ for more information.
+
+
+License
+=======
+
+The entire website sources and documentation are provided under the
+BSD license.  See LICENSE for terms and conditions.
