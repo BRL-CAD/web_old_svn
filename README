@@ -1,10 +1,36 @@
-BRL-CAD Website
-http://brlcad.sf.net
-http://brlcad.org
+                       BRL-CAD Website
+                     http://brlcad.sf.net
+                      http://brlcad.org
 
 BRL-CAD is a powerful Constructive Solid Geometry (CSG) solid modeling
 system. BRL-CAD includes an interactive geometry editor, ray tracing
 support for rendering and geometric analysis, network distributed
 framebuffer support, image-processing and signal-processing tools. The
 entire package is distributed in source code and binary form.
+
+This is the website for BRL-CAD.
+
+The website is maintained separately from BRL-CAD as a separate
+installation module.  The primarly intent of the website module is to
+provide web developers with an isolated location for the website
+sourcecode to live version-controlled.
+
+
+INSTALLATION
+
+At most, it should be sufficient to point a web root url to the
+htdocs/ directory.  There should be no preprocessing or preparation of
+the website sourcecode for it to be used, as long as the required web
+server components are installed.  The primary BRL-CAD website will
+automatically update to the version stored within this module
+periodically (nightly).
+
+Presently, the sole requirement for install is PHP 4 and a capable web
+server such as Apache.
+
+Scripts to install the website in a SourceForge-similar arrangement
+are included in the misc/ directory.  This includes a cron job and a
+run script.  Installation is described in more detail in the INSTALL
+file.
+
 
