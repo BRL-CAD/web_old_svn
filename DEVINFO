@@ -1,0 +1,15 @@
+The website is mainly written in php using a template-driven design to
+encourage separation of site organization and logic from the
+presentation and style.  The template system is a customized caching
+class that does not require any special syntax in the templates
+themselves, i.e. the templates themselves are just php.  For the most
+part, beyond basic site frameworking and accounting, the style and
+appearance are driven by css stylesheets.
+
+php code should be well documented.
+
+classes/objects should be used for logic instead of functions.
+
+indent php and html, 2 space indent with tab stops at 8 characters.
+
+
