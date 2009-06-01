@@ -1,4 +1,0 @@
-#
-# Example update to the website to the version stored in revision control
-#
-1 4 * * * ~brlcad/brlcad/web/misc/update.sh web /groups/b/br/brlcad/htdocs
