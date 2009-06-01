@@ -1,0 +1,39 @@
+#header-navigation {
+width:450px;
+}
+#header-left {
+background:url('/skin2/header-left-ie-lte-6.png');
+width:657px;
+border-top:1px solid black;
+background-repeat:no-repeat;
+}
+#header-text {
+background:transparent;
+}
+
+#footer {
+background:transparent;
+}
+#footer-search {
+background-color:#111;
+margin:10px;
+border:2px solid #c96;
+}
+#footer-line-top {
+display:none;
+}
+#footer-message {
+color:#999;
+}
+#footer-quotes {
+color:#999;
+}
+.bb1, .bb2, .bb3, .bb4, .bb5, .bb6 {
+display:none;
+}
+.sboxcontent {
+background:#fc6;
+}
+.search-submit {
+background-color:#fc6;
+}
