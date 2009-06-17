@@ -313,6 +313,23 @@ function filefield_widget_settings($op, $widget) {
       if (function_exists('token_replace')) {
         $form['file_path']['#description'] .= theme('token_help', 'user');        
       }
+      $form['local_path'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Path for local files on server'),
+        '#default_value' => isset($widget['local_path']) ? $widget['local_path'] : '',
+        '#size' => 64,
+        '#description' => t('Leave blank to disable selection of local files.'), 
+      );
+      $form['local_handle'] = array(
+        '#type' => 'select',
+        '#title' => t('Local files handling'),
+        '#options' => array(
+          '' => t('Do nothing'),
+          'move' => t('Move to Drupal\'s files folder'),
+          'copy' => t('Copy to Drupal\'s files folder'),
+          'link' => t('Create link in Drupal\'s files folder'),
+        )
+      );
       // Let extension modules add their settings to the form.
       foreach (module_implements('filefield_widget_settings') as $module) {
         $function = $module .'_filefield_widget_settings';
@@ -323,7 +340,7 @@ function filefield_widget_settings($op, $widget) {
       module_invoke_all('filefield_widget_settings', $op, $widget, NULL);
       break;
     case 'save':
-      $core_settings = array('file_extensions', 'file_path');
+      $core_settings = array('file_extensions', 'file_path', 'local_path', 'local_handle');
       $additional_settings = module_invoke_all(
         'filefield_widget_settings', $op, $widget, NULL
       );
@@ -516,6 +533,12 @@ function _filefield_widget_form($node, $field, &$items) {
     '#tree' => FALSE,
     '#weight' => 10,
   );
+  
+  $form[$fieldname]['new']['local_file'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Or select one of the local files.'),
+    '#weight' => 11,
+  );
 
   if (is_array($items) && count($items)) {
     $form[$fieldname]['files'] = array(
@@ -678,7 +701,6 @@ function _filefield_file_form_description_reset($form, $form_values) {
  * Validate the form widget.
  */
 function _filefield_widget_validate($node, $field, $items) {
-  
   if (!$field['required']) {
     return;
   }
