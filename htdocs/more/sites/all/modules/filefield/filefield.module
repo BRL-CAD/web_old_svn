@@ -420,7 +420,7 @@ function _filefield_process_local_file($field) {
     return true;
   }
   
-  $localfile = _filefield_local_file($field['widget']['local_path'], $_POST[$fieldname . '_local_file']); // @todo make localfile absolute and add security check
+  $localfile = _filefield_local_file($field['widget']['local_path'], $_POST[$fieldname . '_local_file']);
   if(empty($localfile)) {
     form_set_error($fieldname . '_local_file', t('The file you pointed does not exist in the local repository.'));
     return false;
