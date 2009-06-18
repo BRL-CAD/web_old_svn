@@ -22,6 +22,12 @@ function filefield_menu($may_cache) {
       'access' => TRUE,
       'type' => MENU_CALLBACK
     );
+    $items[] = array(
+      'path' => 'filefield/local',
+      'callback' => '_filefield_local_autocomplete',
+      'access' => TRUE,
+      'type' => MENU_CALLBACK,
+    );
   }
   else if ($_SESSION['filefield']) {
     // Add handlers for previewing new uploads.
@@ -79,7 +85,7 @@ function _filefield_preview() {
 }
 
 function filefield_perm() {
-  return array('view filefield uploads');
+  return array('view filefield uploads', 'select local files');
 }
 
 /**
@@ -402,15 +408,38 @@ function filefield_widget($op, $node, $field, &$items) {
   }
 }
 
-function _filefield_local_file($path, $filename) {
-  if(empty($filename)) {
-    return false;
+function _filefield_local_autocomplete($node_type, $field, $pattern = '') {
+  if(!user_access('select local files')) {
+    return MENU_ACCESS_DENIED;
   }
-  $localfile = rtrim($path, '/') . '/' . $filename;
-  if(!file_check_location($localfile, $path) || !is_file($localfile)) {
-    return false;
+  $field = content_fields($field, $node_type);
+  if(empty($field) || empty($field['widget']['local_path'])) {
+    return MENU_NOT_FOUND;
   }
-  return $localfile;
+  
+  if(strlen(trim($field['widget']['file_extensions']))) {
+    $allowed_extensions = array_unique(explode(' ', strtolower(trim($field['widget']['file_extensions']))));  
+  }
+  
+  $pattern = file_check_location($field['widget']['local_path'] . '/' . $pattern . '*', $field['widget']['local_path']);
+
+  $matches = array();
+  foreach(glob($pattern) as $filepath) {
+    if(isset($allowed_extensions)) {
+      $ext = strtolower(array_pop(explode('.', $filepath)));
+      if (!in_array($ext, $allowed_extensions)) {
+        continue;
+      }
+    }
+    $filename = basename($filepath);
+    $matches[$filename] = $filename . ' (' . format_size(filesize($filepath)) . ') - ' . format_date(filectime($filepath));
+    if(count($matches) > 10) {
+      break;
+    }
+  }
+  
+  print drupal_to_js($matches);
+  exit();
 }
 
 function _filefield_process_local_file($field) {
@@ -419,9 +448,9 @@ function _filefield_process_local_file($field) {
   if (empty($_POST[$fieldname . '_local_file'])) {
     return true;
   }
-  
-  $localfile = _filefield_local_file($field['widget']['local_path'], $_POST[$fieldname . '_local_file']);
-  if(empty($localfile)) {
+  $localfile = file_check_location($field['widget']['local_path'] . '/' . $_POST[$fieldname . '_local_file'], $field['widget']['local_path']);
+
+  if(empty($localfile) || !is_file($localfile)) {
     form_set_error($fieldname . '_local_file', t('The file you pointed does not exist in the local repository.'));
     return false;
   }
@@ -449,17 +478,17 @@ function _filefield_process_local_file($field) {
       $file->filepath = $localfile;
       break;
     case 'move':
-      if(rename($localfile, $tempfile)) {
+      if(@rename($localfile, $tempfile)) {
         $file->filepath = $tempfile;
       }
       break;
     case 'copy':
-      if(copy($localfile, $tempfile)) {
+      if(@copy($localfile, $tempfile)) {
         $file->filepath = $tempfile;
       }
       break;
     case 'link':
-      if(link($localfile, $tempfile)) {
+      if(@link($localfile, $tempfile)) {
         $file->filepath = $tempfile;
       }
       break;
@@ -613,12 +642,14 @@ function _filefield_widget_form($node, $field, &$items) {
     '#weight' => 10,
   );
   
-  if(!empty($field['widget']['local_path'])) {
+  if(!empty($field['widget']['local_path']) && user_access('select local files')) {
     $form[$fieldname]['new'][$fieldname .'_local_file'] = array(
       '#type' => 'textfield',
       '#title' => t('Or select one of the local files'),
       '#weight' => 11,
       '#value' => '',
+      '#autocomplete_path' => 'filefield/local/' . $node->type . '/' . $fieldname,
+      
     );
   }
 
