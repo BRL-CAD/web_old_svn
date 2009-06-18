@@ -1,0 +1,9 @@
+; $Id: nodequeue.info,v 1.1.2.4.2.6 2009/03/28 15:25:10 ezrag Exp $
+name = Nodequeue
+description = Create queues which can contain nodes in arbitrary order
+package = Nodequeue
+; Information added by drupal.org packaging script on 2009-05-01
+version = "5.x-2.6"
+project = "nodequeue"
+datestamp = "1241139336"
+
