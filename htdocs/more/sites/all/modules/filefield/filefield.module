@@ -591,6 +591,7 @@ function _filefield_widget_form($node, $field, &$items) {
     '#type' => 'textfield',
     '#title' => t('Or select one of the local files'),
     '#weight' => 11,
+    '#value' => '',
   );
 
   if (is_array($items) && count($items)) {
