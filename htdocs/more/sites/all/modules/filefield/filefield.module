@@ -429,23 +429,32 @@ function _filefield_widget_prepare_form_values($node, $field, &$items) {
       $file->filename .= '.txt';
     }
 
+    $tempfile = tempnam(realpath(file_directory_temp()), 'tmp_');
     switch($field['widget']['local_handle']) {
-      default:
+      case '':
         $file->filepath = $localfile;
         break;
       case 'move':
-        
+        if(rename($localfile, $tempfile)) {
+          $file->filepath = $tempfile;
+        }
+        break;
+      case 'copy':
+        if(copy($localfile, $tempfile)) {
+          $file->filepath = $tempfile;
+        }
+        break;
+      case 'link':
+        if(link($localfile, $tempfile)) {
+          $file->filepath = $tempfile;
+        }
+        break;
     }
-    // Move uploaded files from php's upload_tmp_dir to Drupal's file temp.
-    // This overcomes open_basedir restrictions for future file operations.
-    if (!move_uploaded_file($_FILES["files"]["tmp_name"][$source], $file->filepath)) {
-      drupal_set_message(t('File upload error. Could not move uploaded file.'));
-      watchdog('file', t('Upload Error. Could not move uploaded file (%file) to destination (%destination).', array('%file' => $_FILES["files"]["tmp_name"][$source], '%destination' => $file->filepath)));
-      return FALSE;
-    }
-    // fake a previous upload in order to make file_check_upload return this file
-    $_SESSION['file_uploads'][$file->source] = $file;
-    unset($_FILES["files"]["tmp_name"][$file->source]); 
+    if(isset($this->filepath)) {
+      // fake a previous upload in order to make file_check_upload return this file
+      $_SESSION['file_uploads'][$file->source] = $file;
+      unset($_FILES["files"]["tmp_name"][$file->source]);
+    } 
   }
   
   // Attach new files 
