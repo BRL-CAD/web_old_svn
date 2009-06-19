@@ -1,8 +1,8 @@
 /* $Id: maintenance.css,v 1.6 2006/07/13 13:11:36 dries Exp $ */
 
 body {
-  background: url(druplicon.png) 4.2em 4em no-repeat #fff;
-  color: #000;
+  background: url(/sites/all/files/humvee.png) 4.2em 6em no-repeat #030;
+  color: #FFF;
   border: 1px solid #bbb;
   margin: 3em;
   padding: 1em 1em 1em 128px;
@@ -14,12 +14,12 @@ h1 {
 h1, h2, h3, h4, h5, h6 {
   font-family: sans-serif;
 }
-:link {
-  color: #0073ba;
+a:link {
+  color: #9c9;
   font-weight: bold;
 }
-:visited {
-  color: #004975;
+a:visited {
+  color: #9c9;
   font-weight: bold;
 }
 
