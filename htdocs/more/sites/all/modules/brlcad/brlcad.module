@@ -65,14 +65,20 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
     case 'insert':
     case 'update':
       brlcad_raytrace($node);
-  var_dump($op,$node, $a3, $a4);
       $node->status = 0;
+      break;
+    case 'view':
+      brlcad_raytrace($node);
       break;
   }
 }
 
 function brlcad_raytrace(&$node) {
-  //var_dump($node);
+  $file = escapeshellarg($node->field_model_file[0]['filepath']);
+  $mged = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/mged');
+  $mged .= ' -c ' . $file . ' tops';
+  exec($mged, $output, $result);
+  var_dump($mged, $result, $output); 
 }
 
 function _brlcad_supported_versions() {
