@@ -1,0 +1,25 @@
+<?php // $Id$
+
+/**
+ * Implementation of hook_install
+ */
+function brlcad_install() {
+  variable_set('brlcad_version', '7.12');
+  variable_set('brlcad_bin_path', '/usr/brlcad/bin');
+  variable_set('brlcad_model', 'model');
+  db_query('CREATE TABLE {brlcad_raytrace_queue}(
+    nid INTEGER PRIMARY KEY,
+    timestamp INTEGER NOT NULL,
+    INDEX timestamp(timestamp)
+  )');
+}
+
+/**
+ * Implementation of hook_uninstall
+ */
+function brlcad_uninstall() {
+  variable_del('brlcad_version');
+  variable_del('brlcad_bin_path');
+  variable_del('brlcad_model');
+  db_query('DROP TABLE {brlcad_raytrace_queue}');
+}

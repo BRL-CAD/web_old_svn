@@ -1,0 +1,5 @@
+; $Id$
+name = BRL-CAD
+description = "Provides basic integration with the BRL-CAD system."
+package = "BRL-CAD"
+version = "5.x-1.x-dev"
