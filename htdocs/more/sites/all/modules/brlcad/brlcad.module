@@ -62,13 +62,11 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
   switch($op) {
     default:
       break;
-    case 'insert':
-    case 'update':
-      brlcad_raytrace($node);
+    case 'submit':
+      brlcad_mged_metadata($node);
       $node->status = 0;
       break;
     case 'view':
-      brlcad_raytrace($node);
       break;
   }
 }
@@ -101,6 +99,34 @@ function brlcad_raytrace(&$node) {
   $mged .= ' -cr ' . $file . ' tree 2>&1';
   var_dump(exec($mged, $output, $result));
   var_dump($mged, $result, $output); 
+}
+
+function brlcad_mged_metadata(&$node) {
+  $node->field_metadata[0]['value'] = _brlcad_mged_run_script('metadata.txt', $node->field_model_file[0]['filepath']);
+}
+
+function _brlcad_mged_run_script($script, $model = null) {
+  $script = realpath(drupal_get_path('module', 'brlcad') . '/scripts/' . variable_get('brlcad_version', '') . '/' . $script);
+  if(empty($script)) {
+    return null;
+  }
+  $script = escapeshellarg(realpath($script));
+  $cmd = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/mged');
+  $cmd .= ' -cr ';
+  $model = realpath($model);
+  if($model) {
+    $model = escapeshellarg($model);
+    $cmd .= $model ;
+  }
+  $cmd .= '<' . $script .  ' 2>&1';
+  exec($cmd, $output, $return_var);
+  if($return_var) {
+    echo $cmd;
+    return null;
+  }
+  // remove the "Opened in READ ONLY mode" message 
+  unset($output[0]);
+  return implode("\n", $output);
 }
 
 function _brlcad_supported_versions() {
