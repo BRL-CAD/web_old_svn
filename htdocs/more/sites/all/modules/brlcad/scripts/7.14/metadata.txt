@@ -1,1 +1,5 @@
- 
+set glob_compat_mode 0
+puts "Database version: [dbversion]"
+title
+units 
+summary 
