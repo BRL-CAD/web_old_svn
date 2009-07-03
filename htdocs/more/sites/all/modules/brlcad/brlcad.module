@@ -93,7 +93,9 @@ function brlcad_form_alter($form_id, &$form) {
   if($form_id != BRLCAD_NODETYPE . '_node_form') {
     return;
   }
-  unset($form['group_metadata']);
+  if(arg(0) == 'node') {
+    unset($form['group_metadata']);
+  }
   return;
   $hidden = array(
     0 => array('field_image_file', 'body_filter', 'log', 'preview'),
