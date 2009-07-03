@@ -1,5 +1,16 @@
-set glob_compat_mode 0
-puts "Database version: [dbversion]"
-title
-units 
-summary 
+# The metadata script is outputing information about the model
+# This information is parsed by the PHP script and stored in node fields 
+# set globing mode; sequence with concat to suppress output of set
+set glob_compat_mode 0; concat
+
+# Output the database version
+dbversion
+
+# Output the one-line text of title 
+string map {"\n" " " "\r" " " "\t" " "} [title]
+
+# Output the units text
+regexp "You are editing in '(\\w+)'." [units] out units; puts $units
+
+# Output the summary
+regsub -all "\n\ +" [string trim [string map {Summary:\n ""} [summary]]] "; " 
