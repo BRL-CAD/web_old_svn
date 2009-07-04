@@ -65,6 +65,23 @@ function brlcad_general_settings() {
     '#options' => $queues,
     '#default_value' => variable_get('brlcad_queue_raytrace', 0),
   );
+  $form['raytrace'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Raytracing'),
+    '#tree' => false,
+  );
+  $form['raytrace']['brlcad_raytrace_ae'] = array(
+    '#type' => 'textarea',
+    '#title' => 'Views',
+    '#description' => t('Enter raytracing azimuth elevation (and optionally twist) tuples for raytracing, one per line. An image will be generated for each tuple.'),
+    '#default_value' => variable_get('brlcad_raytrace_ae', ''),
+  );
+  $form['raytrace']['brlcad_raytrace_size'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Size',
+    '#description' => t('Enter number of pixels of the image.'),
+    '#default_value' => variable_get('brlcad_raytrace_size', 512),
+  );
   return system_settings_form($form);
 }
 
@@ -80,11 +97,17 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
       break;
     case 'submit':
       // @todo remove this when the queing processing is done
-      brlcad_mged_metadata($node);
+      brlcad_metadata($node);
+      brlcad_raytrace($node);
       break;
     case 'insert':
       _brlcad_queue($node, variable_get('brlcad_queue_metadata', 0));
       _brlcad_queue($node, variable_get('brlcad_queue_raytrace', 0));
+      break;
+    case 'update':
+      break;
+    case 'view':
+      brlcad_raytrace($node);
       break;
   }
 }
@@ -115,10 +138,46 @@ function brlcad_form_alter($form_id, &$form) {
 }
 
 function brlcad_raytrace(&$node) {
-  brlcad_mged_run_script('raytrace.txt', $node->field_model_file[0]['filepath']);
+  $image = tempnam(realpath(file_directory_temp()), 'rtimg_');
+  $pixfile = $image . '.pix';
+  $pixpngcmd = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/pix-png') . ' ' . escapeshellarg($pixfile);
+  
+  $views = explode("\n", variable_get('brlcad_raytrace_ae', ''));
+  // delete old images
+  if(is_array($node->field_image_file)) {
+    foreach($node->field_image_file as $key => $value) {
+      $node->field_image_file[$key]['flags']['delete'] = true;
+    }
+  }
+  
+  $env['image'] = $image;
+  $env['size'] = variable_get('brlcad_raytrace_size', 512);
+  foreach($views as $view) {
+    $view = trim($view);
+    if(empty($view)) {
+      continue;
+    }
+    $env['view'] = $view;
+    
+    $pngfile = $image . '_' .str_replace(' ', '_', $view) . '.png';
+    brlcad_mged_run_script('raytrace.txt', $node->field_model_file[0]['filepath'], $env);
+    if(file_exists($pixfile)) {
+      exec($pixpngcmd  . '>' . escapeshellarg($pngfile));
+      unlink($pixfile);
+      $node->field_image_file[] = array(
+        'alt' => 'View ' . $view,
+        'title' => 'View ' . $view,
+        'filename' => 'view_' .str_replace(' ', '_', $view) . '.png',
+        'filepath' => $pngfile,
+        'filemime' => 'image/png',
+        'fid' => 'upload',
+        'filesize' => filesize($pngfile),
+      );
+    }
+  }
 }
 
-function brlcad_mged_metadata(&$node) {
+function brlcad_metadata(&$node) {
   $output = explode("\n", brlcad_mged_run_script('metadata.txt', $node->field_model_file[0]['filepath']));
   
   $node->field_dbversion[0]['value'] = $output[0];
@@ -142,20 +201,20 @@ function _brlcad_queue(&$node, $qid) {
   nodequeue_subqueue_add($queue, $subqueue, $node->nid);
 }
 
-function brlcad_mged_run_command($command, $model = null, $cwd = null, $env = null) {
-  return _brlcad_mged_run_real_command(escapeshellarg($command), $model, $cwd, $env);
+function brlcad_mged_run_command($command, $model = null, $env = null, $cwd = null) {
+  return _brlcad_mged_run_real_command(escapeshellarg($command), $model, $env, $cwd);
 }
 
-function brlcad_mged_run_script($script, $model = null, $cwd = null, $env = null) {
+function brlcad_mged_run_script($script, $model = null, $env = null, $cwd = null) {
   $script = realpath(drupal_get_path('module', 'brlcad') . '/scripts/' . variable_get('brlcad_version', '') . '/' . $script);
   if(empty($script)) {
     return null;
   }
-  return _brlcad_mged_run_real_command('<' . escapeshellarg($script), $model, $cwd, $env);
+  return _brlcad_mged_run_real_command('<' . escapeshellarg($script), $model, $env, $cwd);
 }
 
 
-function _brlcad_mged_run_real_command($command, $model = null, $cwd = null, $env = null) {
+function _brlcad_mged_run_real_command($command, $model = null, $env = null, $cwd = null) {
   if(is_array($vars)) {
     $setvars = '';
     foreach($vars as $key => $value) {
@@ -187,7 +246,9 @@ function _brlcad_mged_run_real_command($command, $model = null, $cwd = null, $en
     return null;
   }
   // trim leading warning Opened in READ ONLY mode
-  $output = substr($output, 25);
+  if(substr($output, 0, 24) == 'Opened in READ ONLY mode') {
+    $output = substr($output, 25);
+  }
   return $output;
 }
 
