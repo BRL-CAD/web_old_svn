@@ -172,7 +172,7 @@ function brlcad_raytrace(&$node) {
       $node->field_image_file[] = array(
         'alt' => 'View ' . $view,
         'title' => 'View ' . $view,
-        'filename' => 'view_' .str_replace(' ', '_', $view) . '.png',
+        'filename' => str_replace('.', '_', basename($model)) . '_' .str_replace(' ', '_', $view) . '.png',
         'filepath' => $pngfile,
         'filemime' => 'image/png',
         'fid' => 'upload',
