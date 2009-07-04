@@ -115,15 +115,16 @@ function brlcad_form_alter($form_id, &$form) {
 }
 
 function brlcad_raytrace(&$node) {
-  _brlcad_mged_run_script('raytrace.txt', $node->field_model_file[0]['filepath']);
+  brlcad_mged_run_script('raytrace.txt', $node->field_model_file[0]['filepath']);
 }
 
 function brlcad_mged_metadata(&$node) {
-  $output = _brlcad_mged_run_script('metadata.txt', $node->field_model_file[0]['filepath']);
-  $node->field_dbversion[0]['value'] = $output[1];
-  $node->field_title[0]['value'] = $output[2];
-  $node->field_units[0]['value'] = $output[3];
-  $node->field_summary[0]['value'] = $output[4];
+  $output = explode("\n", brlcad_mged_run_script('metadata.txt', $node->field_model_file[0]['filepath']));
+  
+  $node->field_dbversion[0]['value'] = $output[0];
+  $node->field_title[0]['value'] = $output[1];
+  $node->field_units[0]['value'] = $output[2];
+  $node->field_summary[0]['value'] = $output[3];
 }
 
 function _brlcad_queue(&$node, $qid) {
@@ -141,9 +142,27 @@ function _brlcad_queue(&$node, $qid) {
   nodequeue_subqueue_add($queue, $subqueue, $node->nid);
 }
 
+function brlcad_mged_run_command($command, $model = null, $cwd = null, $env = null) {
+  return _brlcad_mged_run_real_command(escapeshellarg($command), $model, $cwd, $env);
+}
 
-function _brlcad_mged_run_command($command, $model = null) {
-  $command = escapeshellarg($command);
+function brlcad_mged_run_script($script, $model = null, $cwd = null, $env = null) {
+  $script = realpath(drupal_get_path('module', 'brlcad') . '/scripts/' . variable_get('brlcad_version', '') . '/' . $script);
+  if(empty($script)) {
+    return null;
+  }
+  return _brlcad_mged_run_real_command('<' . escapeshellarg($script), $model, $cwd, $env);
+}
+
+
+function _brlcad_mged_run_real_command($command, $model = null, $cwd = null, $env = null) {
+  if(is_array($vars)) {
+    $setvars = '';
+    foreach($vars as $key => $value) {
+      $key = escapeshellarg($key);
+      $value = escapeshellarg($value); 
+    }
+  }
   $cmd = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/mged');
   $cmd .= ' -cr ';
   $model = realpath($model);
@@ -152,37 +171,23 @@ function _brlcad_mged_run_command($command, $model = null) {
     $cmd .= $model ;
   }
   $cmd .= $command .  ' 2>&1';
-  exec($cmd, $output, $return_var);
-  if($return_var) {
-    echo $cmd;
+  $descriptorspec = array(
+    1 => array("pipe", "w"),  // stdout is a pipe that the child will write to
+  );
+  $process = proc_open($cmd, $descriptorspec, $pipes, $cwd, $env);
+  if (!is_resource($process)) {
     return null;
   }
-  // remove the "Opened in READ ONLY mode" message 
-  unset($output[0]);
-  return $output;
-}
+  $output = stream_get_contents($pipes[1]);
+  fclose($pipes[1]);
 
-function _brlcad_mged_run_script($script, $model = null) {
-  $script = realpath(drupal_get_path('module', 'brlcad') . '/scripts/' . variable_get('brlcad_version', '') . '/' . $script);
-  if(empty($script)) {
+  // It is important that you close any pipes before calling proc_close in order to avoid a deadlock
+  $return_value = proc_close($process);
+  if($return_value) {
     return null;
   }
-  $script = escapeshellarg(realpath($script));
-  $cmd = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/mged');
-  $cmd .= ' -cr ';
-  $model = realpath($model);
-  if($model) {
-    $model = escapeshellarg($model);
-    $cmd .= $model ;
-  }
-  $cmd .= '<' . $script .  ' 2>&1';
-  exec($cmd, $output, $return_var);
-  if($return_var) {
-    echo $cmd;
-    return null;
-  }
-  // remove the "Opened in READ ONLY mode" message 
-  unset($output[0]);
+  // trim leading warning Opened in READ ONLY mode
+  $output = substr($output, 25);
   return $output;
 }
 
