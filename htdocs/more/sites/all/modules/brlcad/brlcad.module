@@ -172,7 +172,7 @@ function brlcad_raytrace(&$node) {
       $node->field_image_file[] = array(
         'alt' => 'View ' . $view,
         'title' => 'View ' . $view,
-        'filename' => str_replace('.', '_', basename($model)) . '_' .str_replace(' ', '_', $view) . '.png',
+        'filename' => str_replace('.', '_', basename($model)) . '_' . str_replace(' ', '_', $view) . '.png',
         'filepath' => $pngfile,
         'filemime' => 'image/png',
         'fid' => 'upload',
@@ -240,13 +240,6 @@ function brlcad_mged_run_script($script, $model = null, $env = null, $cwd = null
 
 
 function _brlcad_mged_run_real_command($command, $model = null, $env = null, $cwd = null) {
-  if(is_array($vars)) {
-    $setvars = '';
-    foreach($vars as $key => $value) {
-      $key = escapeshellarg($key);
-      $value = escapeshellarg($value); 
-    }
-  }
   $cmd = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/mged');
   $cmd .= ' -cr ';
   $model = realpath($model);
