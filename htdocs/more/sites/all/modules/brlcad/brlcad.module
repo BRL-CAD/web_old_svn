@@ -107,7 +107,6 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
     case 'update':
       break;
     case 'view':
-      brlcad_raytrace($node);
       break;
   }
 }
@@ -138,17 +137,23 @@ function brlcad_form_alter($form_id, &$form) {
 }
 
 function brlcad_raytrace(&$node) {
-  $image = tempnam(realpath(file_directory_temp()), 'rtimg_');
-  $pixfile = $image . '.pix';
-  $pixpngcmd = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/pix-png') . ' ' . escapeshellarg($pixfile);
-  
-  $views = explode("\n", variable_get('brlcad_raytrace_ae', ''));
   // delete old images
   if(is_array($node->field_image_file)) {
     foreach($node->field_image_file as $key => $value) {
       $node->field_image_file[$key]['flags']['delete'] = true;
     }
   }
+  
+  $model = _brlcad_get_node_model($node);
+  if(empty($model)) {
+    return;  
+  }
+  
+  $image = tempnam(realpath(file_directory_temp()), 'rtimg_');
+  $pixfile = $image . '.pix';
+  $pixpngcmd = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/pix-png') . ' ' . escapeshellarg($pixfile);
+  
+  $views = explode("\n", variable_get('brlcad_raytrace_ae', ''));
   
   $env['image'] = $image;
   $env['size'] = variable_get('brlcad_raytrace_size', 512);
@@ -160,7 +165,7 @@ function brlcad_raytrace(&$node) {
     $env['view'] = $view;
     
     $pngfile = $image . '_' .str_replace(' ', '_', $view) . '.png';
-    brlcad_mged_run_script('raytrace.txt', $node->field_model_file[0]['filepath'], $env);
+    brlcad_mged_run_script('raytrace.txt', $model, $env);
     if(file_exists($pixfile)) {
       exec($pixpngcmd  . '>' . escapeshellarg($pngfile));
       unlink($pixfile);
@@ -178,12 +183,32 @@ function brlcad_raytrace(&$node) {
 }
 
 function brlcad_metadata(&$node) {
-  $output = explode("\n", brlcad_mged_run_script('metadata.txt', $node->field_model_file[0]['filepath']));
+  $model = _brlcad_get_node_model($node);
+  if(empty($model)) {
+    $node->field_dbversion[0]['value'] = '';
+    $node->field_title[0]['value'] = '';
+    $node->field_units[0]['value'] = '';
+    $node->field_summary[0]['value'] = '';
+  } else {
+    $output = explode("\n", brlcad_mged_run_script('metadata.txt', $model));
   
-  $node->field_dbversion[0]['value'] = $output[0];
-  $node->field_title[0]['value'] = $output[1];
-  $node->field_units[0]['value'] = $output[2];
-  $node->field_summary[0]['value'] = $output[3];
+    $node->field_dbversion[0]['value'] = $output[0];
+    $node->field_title[0]['value'] = $output[1];
+    $node->field_units[0]['value'] = $output[2];
+    $node->field_summary[0]['value'] = $output[3];
+  }
+}
+
+function _brlcad_get_node_model(&$node) {
+  if(!is_array($node->field_model_file)) {
+    return false;
+  }
+  foreach($node->field_model_file as $value) {
+    if(empty($value['delete']) && !empty($value['filepath']) && file_exists($value['filepath'])) {
+      return $value['filepath'];
+    }
+  }
+  return false;
 }
 
 function _brlcad_queue(&$node, $qid) {
