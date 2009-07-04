@@ -149,14 +149,16 @@ function brlcad_raytrace(&$node) {
     return;  
   }
   
+  $size = (int)variable_get('brlcad_raytrace_size', 512);
   $image = tempnam(realpath(file_directory_temp()), 'rtimg_');
   $pixfile = $image . '.pix';
-  $pixpngcmd = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/pix-png') . ' ' . escapeshellarg($pixfile);
+  $pixpngcmd = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/pix-png') . 
+    ' -s ' . $size . ' ' . escapeshellarg($pixfile);
   
   $views = explode("\n", variable_get('brlcad_raytrace_ae', ''));
   
   $env['image'] = $image;
-  $env['size'] = variable_get('brlcad_raytrace_size', 512);
+  $env['size'] = $size;
   foreach($views as $view) {
     $view = trim($view);
     if(empty($view)) {
