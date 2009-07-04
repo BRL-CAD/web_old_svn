@@ -168,14 +168,14 @@ function brlcad_raytrace(&$node) {
     $env['view'] = $view;
     
     $pngfile = $image . '_' .str_replace(' ', '_', $view) . '.png';
-    brlcad_mged_run_script('raytrace.txt', $model, $env);
+    brlcad_mged_run_script('raytrace.txt', $model['filepath'], $env);
     if(file_exists($pixfile)) {
       exec($pixpngcmd  . '>' . escapeshellarg($pngfile));
       unlink($pixfile);
       $node->field_image_file[] = array(
         'alt' => 'View ' . $view,
         'title' => 'View ' . $view,
-        'filename' => str_replace('.', '_', basename($model)) . '_' . str_replace(' ', '_', $view) . '.png',
+        'filename' => str_replace('.', '_', $model['filename']) . '_' . str_replace(' ', '_', $view) . '.png',
         'filepath' => $pngfile,
         'filemime' => 'image/png',
         'fid' => 'upload',
@@ -193,7 +193,7 @@ function brlcad_metadata(&$node) {
     $node->field_units[0]['value'] = '';
     $node->field_summary[0]['value'] = '';
   } else {
-    $output = explode("\n", brlcad_mged_run_script('metadata.txt', $model));
+    $output = explode("\n", brlcad_mged_run_script('metadata.txt', $model['filepath']));
   
     $node->field_dbversion[0]['value'] = $output[0];
     $node->field_title[0]['value'] = $output[1];
@@ -208,7 +208,7 @@ function _brlcad_get_node_model(&$node) {
   }
   foreach($node->field_model_file as $value) {
     if(empty($value['delete']) && !empty($value['filepath']) && file_exists($value['filepath'])) {
-      return $value['filepath'];
+      return $value;
     }
   }
   return false;
