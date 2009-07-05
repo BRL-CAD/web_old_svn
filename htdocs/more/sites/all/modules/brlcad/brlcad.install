@@ -4,14 +4,11 @@
  * Implementation of hook_install
  */
 function brlcad_install() {
-  variable_set('brlcad_version', '7.12');
+  variable_set('brlcad_version', '7.14');
   variable_set('brlcad_bin_path', '/usr/brlcad/bin');
-  variable_set('brlcad_model', 'model');
-  db_query('CREATE TABLE {brlcad_raytrace_queue}(
-    nid INTEGER PRIMARY KEY,
-    timestamp INTEGER NOT NULL,
-    INDEX timestamp(timestamp)
-  )');
+  variable_set('brlcad_processing_flag', 'brlcad');
+  variable_set('brlcad_raytrace_ae', '0 0');
+  variable_set('brlcad_raytrace_size', 512);
 }
 
 /**
@@ -20,6 +17,7 @@ function brlcad_install() {
 function brlcad_uninstall() {
   variable_del('brlcad_version');
   variable_del('brlcad_bin_path');
-  variable_del('brlcad_model');
-  db_query('DROP TABLE {brlcad_raytrace_queue}');
+  variable_del('brlcad_processing_flag');
+  variable_del('brlcad_raytrace_ae');
+  variable_del('brlcad_raytrace_size');
 }
