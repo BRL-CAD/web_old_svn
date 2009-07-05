@@ -95,6 +95,7 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
     case 'update':
       if(isset($node->form_id) && 'model_node_form' == $node->form_id) {
         flag('flag', variable_get('brlcad_processing_flag', ''), $node->nid, _brlcad_fakeuser());
+        drupal_set_message(t('Your model was queued for further processing with BRL-CAD tools (raytracing, metadata extraction, etc). Upon completion, it will be updated with additional data.'));
       }
       break;
   }
