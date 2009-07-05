@@ -21,6 +21,13 @@ function brlcad_menu($may_cache) {
 }
 
 /**
+ * Implementation of hook_cron
+ */
+function brlcad_cron() {
+  brlcad_process_nodes();
+}
+
+/**
  * General settings form for BRL-CAD.
  */
 function brlcad_general_settings() {
@@ -85,13 +92,10 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
     default:
       break;
     case 'submit':
-      // @todo remove this when the queing processing is done
-      brlcad_metadata($node);
-      brlcad_raytrace($node);
+      flag('flag', variable_get('brlcad_processing_flag', ''), $node->nid, _brlcad_fakeuser());
       break;
     case 'insert':
     case 'update':
-      flag('flag', variable_get('brlcad_processing_flag', ''), $node->nid, (object)array('uid' => 1, 'roles' => array()));
       break;
     case 'view':
       break;
@@ -121,6 +125,25 @@ function brlcad_form_alter($form_id, &$form) {
   $form['#multistep'] = true;
   $form['submit']['#type'] = 'button';
   $form['submit']['#value'] = 'Next';
+}
+
+function brlcad_process_nodes() {
+  $processingflag = variable_get('brlcad_processing_flag', '');
+  $flags = flag_get_user_flags('node', null, 0);
+  if(empty($flags[$processingflag])) {
+    return;
+  }
+  foreach($flags[$processingflag] as $nid => $flag) {
+    $node = node_load($nid);
+    brlcad_process_node($node);
+    node_save($node);
+  }
+}
+
+function brlcad_process_node($node) {
+  flag('unflag', variable_get('brlcad_processing_flag', ''), $node->nid, _brlcad_fakeuser());
+  brlcad_metadata($node);
+  brlcad_raytrace($node);
 }
 
 function brlcad_raytrace(&$node) {
@@ -243,6 +266,14 @@ function _brlcad_mged_run_real_command($command, $model = null, $env = null, $cw
     $output = substr($output, 25);
   }
   return $output;
+}
+
+function _brlcad_fakeuser() {
+  static $user;
+  if(!isset($user)) {
+    $user = (object)array('uid' => 1, 'roles' => array());
+  }
+  return $user;
 }
 
 function _brlcad_supported_versions() {
