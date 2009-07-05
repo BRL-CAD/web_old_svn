@@ -1,5 +1,5 @@
 <?php
-// $Id: token_node.inc,v 1.3.2.28 2009/05/14 16:11:00 greggles Exp $
+// $Id: token_node.inc,v 1.3.2.29 2009/06/10 12:39:23 greggles Exp $
 
 /**
  * @file
@@ -113,7 +113,7 @@ function node_token_values($type, $object = NULL, $options = array()) {
               if (!$vid) {
                 continue;
               }
-              $term = db_fetch_object(db_query_range("SELECT t.tid, t.name FROM {term_data} t INNER JOIN {term_node} r ON r.tid = t.tid WHERE t.vid = %d AND r.vid = %d ORDER BY weight", $vid, $object->vid, 0, 1));
+              $term = db_fetch_object(db_query_range("SELECT t.tid, t.name FROM {term_data} t INNER JOIN {term_node} r ON r.tid = t.tid WHERE t.vid = %d AND r.nid = %d ORDER BY weight", $vid, $object->nid, 0, 1));
               $term->vid = $vid;
             }
 
