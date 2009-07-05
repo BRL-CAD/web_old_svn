@@ -561,6 +561,8 @@ function _filefield_widget_prepare_form_values($node, $field, &$items) {
       if (is_array($items)) {
         foreach($items as $delta => $session_file) {
           $items[$delta]['delete'] = TRUE;
+          //@todo this is a hack to clean up files
+          _filefield_file_delete($node, $field, $items[$delta]);
         }
       }
       // Remove old temporary file from session.
