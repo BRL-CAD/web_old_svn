@@ -117,7 +117,6 @@ function brlcad_form_alter($form_id, &$form) {
   }
   if(arg(0) == 'node') {
     unset($form['group_metadata']);
-    unset($form['group_files']['field_image_file']);
   }
   return;
   $hidden = array(
@@ -141,7 +140,9 @@ function brlcad_raytrace(&$node) {
   // delete old images
   if(is_array($node->field_image_file)) {
     foreach($node->field_image_file as $key => $value) {
-      $node->field_image_file[$key]['flags']['delete'] = true;
+      if(substr($node->field_image_file[$key]['title'], -7) == ' (auto)') {
+        $node->field_image_file[$key]['flags']['delete'] = true;
+      }
     }
   }
   
@@ -173,8 +174,7 @@ function brlcad_raytrace(&$node) {
       exec($pixpngcmd  . '>' . escapeshellarg($pngfile));
       unlink($pixfile);
       $node->field_image_file[] = array(
-        'alt' => 'View ' . $view,
-        'title' => 'View ' . $view,
+        'title' => 'View ' . $view . ' (auto)',
         'filename' => str_replace('.', '_', $model['filename']) . '_' . str_replace(' ', '_', $view) . '.png',
         'filepath' => $pngfile,
         'filemime' => 'image/png',
