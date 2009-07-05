@@ -19,8 +19,11 @@ foreach x [tops] {
 # set the view 
 ae $view
 
-# auto zoom to 
+# auto set the viewing size 
 autoview
+
+# zoom in just a bit
+zoom 1.3
 
 # raytrace the model
 rt -s $size -v 0 -o "${image}.pix"
