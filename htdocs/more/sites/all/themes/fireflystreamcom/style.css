@@ -1243,3 +1243,11 @@ table.system-status-report tr.ok, table.system-status-report tr.ok th {
   clear: both;
   float: right;
 }
+
+/**
+ * BRLCAD customizations
+ */
+.field-type-image .field-items .field-item {
+    display: inline;
+    padding: 2px;
+}
