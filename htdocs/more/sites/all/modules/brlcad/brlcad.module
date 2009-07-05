@@ -180,16 +180,22 @@ function brlcad_raytrace(&$node) {
     $pngfile = $image . '_' .str_replace(' ', '_', $view) . '.png';
     brlcad_mged_run_script('raytrace.txt', $model['filepath'], $env);
     if(file_exists($pixfile)) {
-      exec($pixpngcmd  . '>' . escapeshellarg($pngfile));
+      $cmd = $pixpngcmd  . '>' . escapeshellarg($pngfile);
+      exec($cmd, $output, $return_var);
+      unset($output);
       unlink($pixfile);
-      $node->field_image_file[] = array(
-        'title' => 'View ' . $view . ' (auto)',
-        'filename' => str_replace('.', '_', $model['filename']) . '_' . str_replace(' ', '_', $view) . '.png',
-        'filepath' => $pngfile,
-        'filemime' => 'image/png',
-        'fid' => 'upload',
-        'filesize' => filesize($pngfile),
-      );
+      if(!$return_var) {
+        $node->field_image_file[] = array(
+          'title' => 'View ' . $view . ' (auto)',
+          'filename' => str_replace('.', '_', $model['filename']) . '_' . str_replace(' ', '_', $view) . '.png',
+          'filepath' => $pngfile,
+          'filemime' => file_get_mimetype($pngfile),
+          'fid' => 'upload',
+          'filesize' => filesize($pngfile),
+        );
+      } else {
+        watchdog('brlcad', t('Failed to execute command %cmd.', array('%cmd' => $cmd)), WATCHDOG_ERROR);
+      }
     }
   }
 }
@@ -250,6 +256,7 @@ function _brlcad_mged_run_real_command($command, $model = null, $env = null, $cw
   );
   $process = proc_open($cmd, $descriptorspec, $pipes, $cwd, $env);
   if (!is_resource($process)) {
+    watchdog('brlcad', t('Failed to execute command %cmd.', array('%cmd' => $cmd)), WATCHDOG_ERROR);
     return null;
   }
   $output = stream_get_contents($pipes[1]);
