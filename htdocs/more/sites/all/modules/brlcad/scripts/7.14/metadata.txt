@@ -4,13 +4,30 @@
 set glob_compat_mode 0; concat
 
 # Output the database version
+puts DATABASE:VERSION
 dbversion
+puts DATABASE:VERSION
 
-# Output the one-line text of title 
+# Output the one-line text of title
+puts DATABASE:TITLE 
 string map {"\n" " " "\r" " " "\t" " "} [title]
+puts DATABASE:TITLE
 
 # Output the units text
+puts DATABASE:UNITS
 regexp "You are editing in '(\\w+)'." [units] out units; puts $units
+puts DATABASE:UNITS
 
 # Output the summary
-regsub -all "\n\ +" [string trim [string map {Summary:\n ""} [summary]]] "; " 
+puts DATABASE:SUMMARY
+regsub -all "\n\ +" [string trim [string map {Summary:\n ""} [summary]]] "; "
+puts DATABASE:SUMMARY
+
+# Output the tree
+puts DATABASE:TREE
+foreach x [tops -n] { 
+  if {$x != "_GLOBAL"} {
+    puts -nonewline [tree $x]
+  } 
+}
+puts DATABASE:TREE
