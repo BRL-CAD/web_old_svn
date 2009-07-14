@@ -10,7 +10,7 @@ set image $::env(image); set view $::env(view); set size $::env(size); concat
 Z
 
 # draw all top objects
-foreach x [tops] { 
+foreach x [tops -n] { 
   if {$x != "_GLOBAL"} {
     draw $x
   } 
