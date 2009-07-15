@@ -24,10 +24,6 @@ regsub -all "\n\ +" [string trim [string map {Summary:\n ""} [summary]]] "; "
 puts DATABASE:SUMMARY
 
 # Output the tree
-puts DATABASE:TREE
-foreach x [tops -n] { 
-  if {$x != "_GLOBAL"} {
-    puts -nonewline [tree $x]
-  } 
-}
-puts DATABASE:TREE
+puts DATABASE:OBJECTS
+regsub -all " +" [ls -l] " "
+puts DATABASE:OBJECTS

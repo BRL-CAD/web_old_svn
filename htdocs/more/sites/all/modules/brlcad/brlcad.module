@@ -91,6 +91,12 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
   switch($op) {
     default:
       break;
+    case 'submit_no':
+      brlcad_metadata($node);
+      break;
+    case 'view_no':
+      var_dump(brlcad_objects_list($node->field_objects[0]['value']));
+      break;
     case 'insert':
     case 'update':
       if(isset($node->form_id) && 'model_node_form' == $node->form_id) {
@@ -101,6 +107,9 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
   }
 }
 
+/**
+ * Implementation of hook_alter
+ */
 function brlcad_form_alter($form_id, &$form) {
   if($form_id != BRLCAD_NODETYPE . '_node_form') {
     return;
@@ -126,6 +135,9 @@ function brlcad_form_alter($form_id, &$form) {
   $form['submit']['#value'] = 'Next';
 }
 
+/**
+ * Process nodes marked for BRLCAD processing. 
+ */
 function brlcad_process_nodes() {
   $processingflag = variable_get('brlcad_processing_flag', '');
   $flags = flag_get_user_flags('node', null, 0);
@@ -139,12 +151,21 @@ function brlcad_process_nodes() {
   }
 }
 
+/**
+ * Does BRLCAD processing on a node.
+ * @param object $node node to process
+ */
 function brlcad_process_node($node) {
   flag('unflag', variable_get('brlcad_processing_flag', ''), $node->nid, _brlcad_fakeuser());
   brlcad_metadata($node);
   brlcad_raytrace($node);
 }
 
+/**
+ * Produces raytracings for a node.
+ *
+ * @param object $node node to rayrace
+ */
 function brlcad_raytrace(&$node) {
   // delete old images
   if(is_array($node->field_image_file)) {
@@ -200,21 +221,56 @@ function brlcad_raytrace(&$node) {
   }
 }
 
+/**
+ * Retrieves metadata from a model.
+ *
+ * @param object $node node to get metadata from
+ */
 function brlcad_metadata(&$node) {
+  $node->field_dbversion[0]['value'] = '';
+  $node->field_title[0]['value'] = '';
+  $node->field_units[0]['value'] = '';
+  $node->field_summary[0]['value'] = '';
+  $node->field_objects[0]['value'] = '';
+  
   $model = _brlcad_get_node_model($node);
   if(empty($model)) {
-    $node->field_dbversion[0]['value'] = '';
-    $node->field_title[0]['value'] = '';
-    $node->field_units[0]['value'] = '';
-    $node->field_summary[0]['value'] = '';
-  } else {
-    $output = explode("\n", brlcad_mged_run_script('metadata.txt', $model['filepath']));
-  
-    $node->field_dbversion[0]['value'] = $output[0];
-    $node->field_title[0]['value'] = $output[1];
-    $node->field_units[0]['value'] = $output[2];
-    $node->field_summary[0]['value'] = $output[3];
+    return;
   }
+  
+  $output = brlcad_mged_run_script('metadata.txt', $model['filepath']);
+  if(empty($output) ) {
+    return;
+  }
+  
+  preg_match_all('|DATABASE:([^\n]+)\n(.+)\nDATABASE:\1|sm', $output, $fields);
+  $fields = array_combine($fields[1], $fields[2]);
+  $node->field_dbversion[0]['value'] = isset($fields['VERSION']) ? $fields['VERSION'] : '';
+  $node->field_title[0]['value'] = isset($fields['TITLE']) ? $fields['TITLE'] : '';
+  $node->field_units[0]['value'] = isset($fields['UNITS']) ? $fields['UNITS'] : '';
+  $node->field_summary[0]['value'] = isset($fields['SUMMARY']) ? $fields['SUMMARY'] : '';
+  $node->field_objects[0]['value'] = isset($fields['OBJECTS']) ? $fields['OBJECTS'] : '';
+}
+
+/**
+ * Parses the output of one or more BRLCAD's ls -l command. 
+ *
+ * @param string $text output from BRLCAD
+ */
+function brlcad_objects_list($text) {
+  $text = explode("\n", $text);
+  $objects = array();
+  foreach($text as $line) {
+    if(!preg_match('|^(.+) (\w+) (\d+) (\d+) (\d+)$|', $line, $line)) {
+      continue;
+    }
+    // trim the type suffix for combinations and regions (/ or /R)
+    if($suffix = strrpos($name, '/')) {
+      $name = substr($name, 0, $suffix);
+    }
+    $objects[$line[1]] = $line[1] . ' (' . $line[2] . ')';
+  }
+  return $objects;
 }
 
 function _brlcad_get_node_model(&$node) {
@@ -298,4 +354,15 @@ function _brlcad_supported_versions() {
     }
   }
   return $supported;
+}
+
+/**
+ * Helper function to be used in CCK fields
+ *
+ * @return array
+ */
+function _brlcad_current_node_objects_list() {
+  if(arg(0) == 'node' && is_numeric(arg(1)) && arg(2) == 'edit' && ($node = node_load(arg(1)))) {
+    return brlcad_objects_list($node->field_objects[0]['value']);
+  }
 }
