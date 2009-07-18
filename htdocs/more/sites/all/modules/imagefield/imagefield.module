@@ -230,7 +230,7 @@ function imagefield_file_insert($node, &$file, $field) {
   else {
     $widget_image_path = $field['widget']['image_path'];
   }
-
+  $widget_image_path = str_replace('[nid]', $node->nid, $widget_image_path);
   $filepath = file_create_path($widget_image_path) .'/'. $file['filename'];
 
   if (imagefield_check_directory($widget_image_path) && $file = file_save_upload((object)$file, $filepath)) {
