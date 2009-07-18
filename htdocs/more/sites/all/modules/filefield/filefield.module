@@ -166,7 +166,7 @@ function filefield_file_insert($node, $field, &$file) {
   else {
     $widget_file_path = $field['widget']['file_path'];
   }
- 
+  $widget_file_path = str_replace('[nid]', $node->nid, $widget_file_path);
   $filepath = file_create_path($widget_file_path) . '/' . $file['filename'];
   
   if (filefield_check_directory($widget_file_path) && $file = file_save_upload((object)$file, $filepath)) {
