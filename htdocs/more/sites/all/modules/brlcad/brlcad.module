@@ -95,7 +95,8 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
       brlcad_metadata($node);
       break;
     case 'view_no':
-      var_dump(brlcad_objects_list($node->field_objects[0]['value']));
+      dvm(brlcad_objects_list($node->field_objects[0]['value']));
+      dvm($node->field_render_objects);
       break;
   }
 }
@@ -200,19 +201,22 @@ function brlcad_process_node(&$node) {
   $size = (int)variable_get('brlcad_raytrace_size', 512);
   $views = str_replace(array("\r\n", "\n"), ':', variable_get('brlcad_raytrace_ae', ''));
   $image = tempnam(realpath(file_directory_temp()), 'rtimg_');
-  unlink($image);
+  $objects = content_transpose_array_rows_cols($node->field_render_objects);
+  $objects = empty($objects['value']) ? '*' : implode(' ', $objects['value']);
   $env = array(
     'image' => $image,
     'size' => $size,
     'views' => $views,
-    'objects' => '*',
+    'objects' => $objects, 
   );
-  
+
+  // run the script
   $output = brlcad_mged_run_script('metadata.txt', $model['filepath'], $env);
+  unlink($image);
+  unset($env);
   if(empty($output) ) {
     return;
   }
-  drupal_set_message($output);
   
   // parse the output
   preg_match_all('|DATABASE:([^\n]+)\n(.+)\nDATABASE:\1|sm', $output, $fields);
@@ -269,7 +273,7 @@ function brlcad_objects_list($text) {
     if($suffix = strrpos($name, '/')) {
       $name = substr($name, 0, $suffix);
     }
-    $objects[$line[1]] = $line[1] . ' (' . $line[2] . ')';
+    $objects[$line[1]] = $line[1] . ';' . $line[2];
   }
   return $objects;
 }
