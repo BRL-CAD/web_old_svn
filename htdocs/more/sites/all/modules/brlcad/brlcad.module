@@ -173,16 +173,14 @@ function brlcad_process_nodes() {
  */
 function brlcad_process_node(&$node) {
   brlcad_processing_flag($node, false);
-  brlcad_metadata($node);
-  brlcad_raytrace($node);
-}
-
-/**
- * Produces raytracings for a node.
- *
- * @param object $node node to rayrace
- */
-function brlcad_raytrace(&$node) {
+  
+  // delete old data
+  $node->field_dbversion[0]['value'] = '';
+  $node->field_title[0]['value'] = '';
+  $node->field_units[0]['value'] = '';
+  $node->field_summary[0]['value'] = '';
+  $node->field_objects[0]['value'] = '';
+  
   // delete old images
   if(is_array($node->field_image_file)) {
     foreach($node->field_image_file as $key => $value) {
@@ -192,32 +190,50 @@ function brlcad_raytrace(&$node) {
     }
   }
   
+  // obtain model file
   $model = _brlcad_get_node_model($node);
   if(empty($model)) {
     return;  
   }
   
+  // prepare environment variables
   $size = (int)variable_get('brlcad_raytrace_size', 512);
+  $views = str_replace(array("\r\n", "\n"), ':', variable_get('brlcad_raytrace_ae', ''));
   $image = tempnam(realpath(file_directory_temp()), 'rtimg_');
-  $pixfile = $image . '.pix';
-  $pixpngcmd = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/pix-png') . 
-    ' -s ' . $size . ' ' . escapeshellarg($pixfile);
+  unlink($image);
+  $env = array(
+    'image' => $image,
+    'size' => $size,
+    'views' => $views,
+    'objects' => '*',
+  );
   
-  $views = explode("\n", variable_get('brlcad_raytrace_ae', ''));
+  $output = brlcad_mged_run_script('metadata.txt', $model['filepath'], $env);
+  if(empty($output) ) {
+    return;
+  }
+  drupal_set_message($output);
   
-  $env['image'] = $image;
-  $env['size'] = $size;
-  foreach($views as $view) {
-    $view = trim($view);
-    if(empty($view)) {
-      continue;
-    }
-    $env['view'] = $view;
-    
-    $pngfile = $image . '_' .str_replace(' ', '_', $view) . '.png';
-    brlcad_mged_run_script('raytrace.txt', $model['filepath'], $env);
+  // parse the output
+  preg_match_all('|DATABASE:([^\n]+)\n(.+)\nDATABASE:\1|sm', $output, $fields);
+  $fields = array_combine($fields[1], $fields[2]);
+  
+  // import metadata values 
+  $node->field_dbversion[0]['value'] = isset($fields['VERSION']) ? trim($fields['VERSION']) : '';
+  $node->field_title[0]['value'] = isset($fields['TITLE']) ? trim($fields['TITLE']) : '';
+  $node->field_units[0]['value'] = isset($fields['UNITS']) ? trim($fields['UNITS']) : '';
+  $node->field_summary[0]['value'] = isset($fields['SUMMARY']) ? $fields['SUMMARY'] : '';
+  $node->field_objects[0]['value'] = isset($fields['OBJECTS']) ? preg_replace('| +|', ' ', $fields['OBJECTS']) : '';
+  
+  // import images
+  $pixpngcmd = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/pix-png') . ' -s ' . $size . ' ';
+  $views = explode(':', $views);
+  foreach($views as $key => $view) {
+    $pixfile = $image . $key . '.pix';
     if(file_exists($pixfile)) {
-      $cmd = $pixpngcmd  . '>' . escapeshellarg($pngfile);
+      $view = $views[$key];
+      $pngfile = $image . $key . '.png';
+      $cmd = $pixpngcmd  . escapeshellarg($pixfile) . '>' . escapeshellarg($pngfile);
       exec($cmd, $output, $return_var);
       unset($output);
       unlink($pixfile);
@@ -233,39 +249,8 @@ function brlcad_raytrace(&$node) {
       } else {
         watchdog('brlcad', t('Failed to execute command %cmd.', array('%cmd' => $cmd)), WATCHDOG_ERROR);
       }
-    }
+    }  
   }
-}
-
-/**
- * Retrieves metadata from a model.
- *
- * @param object $node node to get metadata from
- */
-function brlcad_metadata(&$node) {
-  $node->field_dbversion[0]['value'] = '';
-  $node->field_title[0]['value'] = '';
-  $node->field_units[0]['value'] = '';
-  $node->field_summary[0]['value'] = '';
-  $node->field_objects[0]['value'] = '';
-  
-  $model = _brlcad_get_node_model($node);
-  if(empty($model)) {
-    return;
-  }
-  
-  $output = brlcad_mged_run_script('metadata.txt', $model['filepath']);
-  if(empty($output) ) {
-    return;
-  }
-  
-  preg_match_all('|DATABASE:([^\n]+)\n(.+)\nDATABASE:\1|sm', $output, $fields);
-  $fields = array_combine($fields[1], $fields[2]);
-  $node->field_dbversion[0]['value'] = isset($fields['VERSION']) ? $fields['VERSION'] : '';
-  $node->field_title[0]['value'] = isset($fields['TITLE']) ? $fields['TITLE'] : '';
-  $node->field_units[0]['value'] = isset($fields['UNITS']) ? $fields['UNITS'] : '';
-  $node->field_summary[0]['value'] = isset($fields['SUMMARY']) ? $fields['SUMMARY'] : '';
-  $node->field_objects[0]['value'] = isset($fields['OBJECTS']) ? $fields['OBJECTS'] : '';
 }
 
 /**
