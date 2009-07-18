@@ -91,8 +91,15 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
   switch($op) {
     default:
       break;
-    case 'submit_no':
-      brlcad_metadata($node);
+    case 'update':
+      /*
+       * Queue for BRLCAD processing if the render_objects list was changed.
+       */
+      // retrieve old node from static cache
+      $old_node = node_load($node->nid);
+      if($node->field_render_objects != $old_node->field_render_objects) {
+        brlcad_processing_flag($node, true);
+      }
       break;
     case 'view_no':
       dvm(brlcad_objects_list($node->field_objects[0]['value']));
@@ -105,6 +112,9 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
  * Implementation hook of filefield. 
  */
 function brlcad_filefield($op, &$node, &$field, &$file) {
+  /*
+   * Queue for BRLCAD processing if model file was changed.
+   */
   if($op == 'file_save' && $field['field_name'] == 'field_model_file') {
     brlcad_processing_flag($node, true);
   }
