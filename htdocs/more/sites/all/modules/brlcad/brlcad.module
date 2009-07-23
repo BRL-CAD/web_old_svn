@@ -3,6 +3,14 @@
 define (BRLCAD_NODETYPE, 'model');
 
 /**
+ * Implementation of hook_perm
+ */
+function brlcad_perm() {
+  return array('edit metadata');
+}
+
+
+/**
  * Implementation of hook_menu
  */
 function brlcad_menu($may_cache) {
@@ -91,13 +99,54 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
   switch($op) {
     default:
       break;
+    case 'validate':
+      // force a model submission for new nodes, but not for old ones
+      if(empty($node->nid) && empty($node->field_original_file)) {
+        form_set_error('field_original_file', t('@field is required. Please upload a file.', array('@field' => 'Model file')));
+      }
+      break;
+    case 'submit':
+      if(empty($node->nid)) {
+      	// this this is a new node, it will require processing
+      	$node->brlcad_processing = true;
+      	
+        // delete model metadata (just to be safe)
+      	$node->field_title[0]['value'] = '';
+      	$node->field_render_objects[0]['value'] = '';
+      	
+      } else {
+      	// if this is an updated node, load the old version (from cache)
+        $node_current = node_load($node->nid);
+        
+        // if the model file changed, it will require processing
+        if(empty($node->field_original_file[0]['fid']) || $node->field_original_file[0]['fid'] != $node_current->field_original_file[0]['fid']) {
+          $node->brlcad_processing = true;
+          
+          // delete model data
+          $node->field_title[0]['value'] = '';
+          $node->field_render_objects[0]['value'] = '';
+          
+          // delete the old BRLCAD model file
+          if(!empty($node->field_model_file[0])) {
+          	$node->field_model_file[0]['delete'] = true;
+          }
+        }
+        
+        // if the rendering objects list changed, it will require processing
+        if($node->field_render_objects != $node_current->field_render_objects) {
+          $node->brlcad_processing = true;
+        }
+      }
+      break;
+    case 'insert':
+      // flag the node if it the node requires processing
+      if(!empty($node->brlcad_processing)) {
+        brlcad_processing_flag($node, true);
+      }
+      break;
     case 'update':
-      /*
-       * Queue for BRLCAD processing if the render_objects list was changed.
-       */
-      // retrieve old node from static cache
-      $old_node = node_load($node->nid);
-      if($node->field_render_objects != $old_node->field_render_objects) {
+      // flag the node if it the node requires processing
+      if(!empty($node->brlcad_processing)) {
         brlcad_processing_flag($node, true);
       }
       break;
@@ -105,18 +154,6 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
       dvm(brlcad_objects_list($node->field_objects[0]['value']));
       dvm($node->field_render_objects);
       break;
-  }
-}
-
-/**
- * Implementation hook of filefield. 
- */
-function brlcad_filefield($op, &$node, &$field, &$file) {
-  /*
-   * Queue for BRLCAD processing if model file was changed.
-   */
-  if($op == 'file_save' && $field['field_name'] == 'field_model_file') {
-    brlcad_processing_flag($node, true);
   }
 }
 
@@ -138,28 +175,39 @@ function brlcad_processing_flag(&$node, $enable_flag) {
  * Implementation of hook_alter
  */
 function brlcad_form_alter($form_id, &$form) {
-  if($form_id != BRLCAD_NODETYPE . '_node_form') {
+  if($form_id != BRLCAD_NODETYPE . '_node_form' || arg(0) != 'node') {
     return;
   }
-  if(arg(0) == 'node') {
+  
+  // hide additional file fields
+  unset($form['group_files']['field_model_file']);
+  
+  if(is_numeric(arg(1))) {
+    // this is an existing node
+    
+    // hide uneditable fields
+    unset($form['group_metadata']['field_units']);
+    unset($form['group_metadata']['field_dbversion']);
+    unset($form['group_metadata']['field_summary']);
+    unset($form['group_metadata']['field_objects']);
+    
+    // hide render objects field if it's not useful
+    if(empty($node->field_render_objects)) {
+      unset($form['group_metadata']['field_render_objects']);
+    }
+
+    // the user can't edit metadata
+    if(!user_access('edit metadata')) {
+      if(empty($node->field_render_objects)) {
+        unset($form['group_metadata']);
+      } else {
+        unset($form['group_metadata']['field_title']);
+      }
+    }
+  } else {
+    // this is a new node, hide all metadata
     unset($form['group_metadata']);
   }
-  return;
-  $hidden = array(
-    0 => array('field_image_file', 'body_filter', 'log', 'preview'),
-    1 => array('comment_settings', 'menu', 'path', 'captcha', 'field_license', 'field_model_file'), 
-  );
-  $step = isset($form['#post']['step']) ? (int)$form['#post']['step'] : 0;
-  foreach($hidden[$step] as $name) {
-    unset($form[$name]);
-  }
-  $fomr['step'] = array(
-    '#type' => 'hidden',
-    '#value' => $step + 1,
-  );
-  $form['#multistep'] = true;
-  $form['submit']['#type'] = 'button';
-  $form['submit']['#value'] = 'Next';
 }
 
 /**
@@ -179,15 +227,30 @@ function brlcad_process_nodes() {
 }
 
 /**
+ * Converts a generic model to a BRLCAD model.
+ * @param $node object containin model node data 
+ */
+function brlcad_convert_models(&$node) {
+  $extension = pathinfo($node->field_original_file[0]['filename'], PATHINFO_EXTENSION);
+  if($extension == 'g') {
+    $node->field_model_file[0] = $node->field_original_file[0];
+    $node->field_original_file[0] = array('delete' => true);
+    return;
+  }
+  $newfile = tempnam(realpath(file_directory_temp()), 'rtimg_');
+}
+
+/**
  * Does BRLCAD processing on a node.
  * @param object $node node to process
  */
 function brlcad_process_node(&$node) {
   brlcad_processing_flag($node, false);
   
+  brlcad_convert_models($node);
+  
   // delete old data
   $node->field_dbversion[0]['value'] = '';
-  $node->field_title[0]['value'] = '';
   $node->field_units[0]['value'] = '';
   $node->field_summary[0]['value'] = '';
   $node->field_objects[0]['value'] = '';
@@ -221,7 +284,8 @@ function brlcad_process_node(&$node) {
   );
 
   // run the script
-  $output = brlcad_mged_run_script('metadata.txt', $model['filepath'], $env);
+  $script = drupal_get_path('module', 'brlcad') . '/scripts/' . variable_get('brlcad_version', '') . '/metadata.txt';
+  $output = brlcad_run_mged_script($script, $model['filepath'], $env);
   unlink($image);
   unset($env);
   if(empty($output) ) {
@@ -233,8 +297,10 @@ function brlcad_process_node(&$node) {
   $fields = array_combine($fields[1], $fields[2]);
   
   // import metadata values 
+  if(empty($node->field_title[0]['value'])) {
+    $node->field_title[0]['value'] = isset($fields['TITLE']) ? trim($fields['TITLE']) : '';
+  }
   $node->field_dbversion[0]['value'] = isset($fields['VERSION']) ? trim($fields['VERSION']) : '';
-  $node->field_title[0]['value'] = isset($fields['TITLE']) ? trim($fields['TITLE']) : '';
   $node->field_units[0]['value'] = isset($fields['UNITS']) ? trim($fields['UNITS']) : '';
   $node->field_summary[0]['value'] = isset($fields['SUMMARY']) ? $fields['SUMMARY'] : '';
   $node->field_objects[0]['value'] = isset($fields['OBJECTS']) ? preg_replace('| +|', ' ', $fields['OBJECTS']) : '';
@@ -265,6 +331,10 @@ function brlcad_process_node(&$node) {
       }
     }  
   }
+}
+
+function brlcad_load_api() {
+  require_once(drupal_get_path('module', 'brlcad') . '/brlcad.inc');
 }
 
 /**
@@ -298,51 +368,6 @@ function _brlcad_get_node_model(&$node) {
     }
   }
   return false;
-}
-
-function brlcad_mged_run_command($command, $model = null, $env = null, $cwd = null) {
-  return _brlcad_mged_run_real_command(escapeshellarg($command), $model, $env, $cwd);
-}
-
-function brlcad_mged_run_script($script, $model = null, $env = null, $cwd = null) {
-  $script = realpath(drupal_get_path('module', 'brlcad') . '/scripts/' . variable_get('brlcad_version', '') . '/' . $script);
-  if(empty($script)) {
-    return null;
-  }
-  return _brlcad_mged_run_real_command('<' . escapeshellarg($script), $model, $env, $cwd);
-}
-
-
-function _brlcad_mged_run_real_command($command, $model = null, $env = null, $cwd = null) {
-  $cmd = escapeshellcmd(variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/mged');
-  $cmd .= ' -cr ';
-  $model = realpath($model);
-  if($model) {
-    $model = escapeshellarg($model);
-    $cmd .= $model ;
-  }
-  $cmd .= $command .  ' 2>&1';
-  $descriptorspec = array(
-    1 => array("pipe", "w"),  // stdout is a pipe that the child will write to
-  );
-  $process = proc_open($cmd, $descriptorspec, $pipes, $cwd, $env);
-  if (!is_resource($process)) {
-    watchdog('brlcad', t('Failed to execute command %cmd.', array('%cmd' => $cmd)), WATCHDOG_ERROR);
-    return null;
-  }
-  $output = stream_get_contents($pipes[1]);
-  fclose($pipes[1]);
-
-  // It is important that you close any pipes before calling proc_close in order to avoid a deadlock
-  $return_value = proc_close($process);
-  if($return_value) {
-    return null;
-  }
-  // trim leading warning Opened in READ ONLY mode
-  if(substr($output, 0, 24) == 'Opened in READ ONLY mode') {
-    $output = substr($output, 25);
-  }
-  return $output;
 }
 
 function _brlcad_fakeuser() {
