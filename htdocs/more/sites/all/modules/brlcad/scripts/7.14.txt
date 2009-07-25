@@ -44,7 +44,7 @@ foreach x $objects {
   } 
 }
 
-puts DATABASE:IMAGES
+puts DATABASE:RAYTRACE
 set offset 0; concat
 foreach view [split $views ":"] {
   # set the view 
@@ -61,4 +61,4 @@ foreach view [split $views ":"] {
   
   incr offset; concat 
 }
-puts DATABASE:IMAGES
+puts DATABASE:RAYTRACE
