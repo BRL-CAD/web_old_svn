@@ -1192,7 +1192,7 @@ table.system-status-report tr.ok, table.system-status-report tr.ok th {
 
 .slogan{
   margin:-25px 0pt 0pt 0px;
-  text-align: right;
+  text-align: center;
   color: #CCD5B6;
   float:none;
   font: 11px calibri;
