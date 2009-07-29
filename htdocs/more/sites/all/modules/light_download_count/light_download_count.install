@@ -1,0 +1,15 @@
+<?php // $Id$
+
+/**
+ * Implementation of hook_install
+ */
+function light_download_count_install() {
+  db_query('ALTER TABLE {files} ADD COLUMN downloads INTEGER NOT NULL DEFAULT 0');
+}
+
+/**
+ * Implementation of hook_uninstall
+ */
+function light_download_count_uninstall() {
+  db_query('ALTER TABLE {files} DROP COLUMN downloads');
+}

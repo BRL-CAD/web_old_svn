@@ -1,0 +1,3 @@
+name = Light download count
+description = "Increments a download counter for each file and logs a descriptive message each time an attached file is downloaded."
+version = "5.x-1.0"

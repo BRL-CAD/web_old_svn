@@ -1,0 +1,67 @@
+<?php // $Id$
+
+/**
+ * @file Light download count modules counts the download of each attached file.
+ */
+
+/**
+ * Implementation of hook_help()
+ */
+function light_download_count_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Increments a download counter and logs a descriptive message each time an attached file is downloaded.');
+  }
+}
+
+/**
+ * Implementation of hook_menu()
+ */
+function light_download_count_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'download_count',
+      'callback' => 'light_download_count_public',
+      'access' => true,
+      'type' => MENU_CALLBACK,
+    );
+  }
+  return $items;
+}
+
+/**
+ * Increases the download count and adds a watchdog messages.
+ * @param $local_filepath file path inside the Drupal's files directory.
+ */
+function _light_download_count_download($filepath) {
+  db_query('UPDATE {files} SET downloads=downloads+1 WHERE filepath="%s"', $filepath);
+  if(db_affected_rows()) {
+    watchdog('download', t('%file was downloaded', array('%file' => $filepath)), WATCHDOG_NOTICE);
+  }
+}
+
+/**
+ * Can be triggered by an public download via .htaccess to count it.
+ * @return unknown_type
+ */
+function light_download_count_public() {
+  global $base_url;
+  if(variable_get('file_downloads', FILE_DOWNLOADS_PUBLIC) != FILE_DOWNLOADS_PUBLIC) {
+    return MENU_ACCESS_DENIED;
+  }
+  $filepath = isset($_GET['file']) ? $_GET['file'] : '';
+  if ($filepath) {
+    _light_download_count_download($filepath);
+  }
+  header('Location: ' . $base_url .'/'. $filepath . '?skip_count');
+  exit;
+}
+
+/**
+ * Implementation of file_download()
+ */
+function light_download_count_file_download($filename) {
+  _light_download_count_download(file_create_path($filename));
+}
