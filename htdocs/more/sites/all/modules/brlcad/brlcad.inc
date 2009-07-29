@@ -6,21 +6,20 @@
  */
 
 /**
- * Runs the BRLCAD metadata extraction and raytracing script, parses and returns the results. 
+ * Runs the BRLCAD metadata extraction and raytracing script, parses and returns the results.
  * @param $model filepath of the model file
  * @param $objects array of object names to raytrace
- * @return array metadata fields and raytrace image paths 
+ * @return array metadata fields and raytrace image paths
  */
 function brlcad_metadata_and_rt($model, $objects = null) {
   // obtain model file
   if(empty($model)) {
     return;
   }
-  
+
   // prepare environment variables
-  $size = (int)variable_get('brlcad_raytrace_size', 512);
   $views = str_replace(array("\r\n", "\n"), ':', variable_get('brlcad_raytrace_ae', ''));
-  $image = tempnam(realpath(file_directory_temp()), 'rtimg_');
+  $rtscript = tempnam(realpath(file_directory_temp()), 'rtimg_');
   if(is_array($objects)) {
     $objects = implode(' ', $objects);
   }
@@ -28,8 +27,7 @@ function brlcad_metadata_and_rt($model, $objects = null) {
     $objects = '*';
   }
   $env = array(
-    'image' => $image,
-    'size' => $size,
+    'rtscript' => $rtscript,
     'views' => $views,
     'objects' => $objects, 
   );
@@ -37,51 +35,73 @@ function brlcad_metadata_and_rt($model, $objects = null) {
   // run the script
   $script = drupal_get_path('module', 'brlcad') . '/scripts/' . variable_get('brlcad_version', 'generic') . '.txt';
   $output = brlcad_run_mged_script($script, $model, $env);
-  unlink($image);
+  unset($env);
   if(empty($output) ) {
     return;
   }
   
   // parse the output
-  preg_match_all('|DATABASE:([^\n]+)\n(.+)\nDATABASE:\1|sm', $output, $fields);
+  if(!preg_match_all('|\bDATABASE:(\w+)\s+(.+?)\s+ENDDATABASE\b|sm', $output, $fields)) {
+    watchdog('brlcad', t('Failed to parse mged output: <pre>@output</pre>.', array('@output' => $output)), WATCHDOG_ERROR);
+    return;
+  }
+  
   $fields = array_combine($fields[1], $fields[2]);
-  $required_fields = array('TITLE', 'VERSION', 'SUMMARY', 'UNITS', 'OBJECTS');
+  $required_fields = array('TITLE', 'VERSION', 'SUMMARY', 'UNITS', 'OBJECTS', 'RENDER');
   foreach($required_fields as $field) {
     if(!isset($fields[$field])) {
       $fields[$field] = null;
     }
   }
 
-  // convert object listing to a CSV list
-  preg_match_all('|^(.+?) +(\w+) +(\d+) +(\d+) +(\d+)$|m', $fields['OBJECTS'], $matches, PREG_SET_ORDER);
-  $fields['OBJECTS'] = '';
-  foreach($matches as $match) {
-    if($fields['OBJECTS']) {
-      $fields['OBJECTS'] .= "\n";
+  // convert object listing to a CSV list and retrieve the list of objects rendered
+  $render = array();
+  $fields['OBJECTS'] = explode("\n", $fields['OBJECTS']);
+  foreach($fields['OBJECTS'] as $key => $object) {
+    $name = strtok($object, ';');
+    if($name === '' || $name === '_GLOBAL') {
+      unset($fields['OBJECTS'][$key]);
     }
-    $fields['OBJECTS'] .= $match[1] . ';' . $match[2] . ';' . $match[3] . ';' . $match[4]. ';' . $match[5];
+    if(preg_match('|\b' . preg_quote($name, '|') . '\b|', $fields['RENDER'])) {
+      $render[] = $name;
+    }
   }
+  $fields['OBJECTS'] = implode("\n", $fields['OBJECTS']);
+  $fields['RENDER'] = $render;
+  unset($render);
   
-  // include image paths
   $fields['IMAGES'] = array();
-  $views = explode(':', $views);
-  foreach($views as $key => $view) {
-    $pixfile = $image . $key . '.pix';
-    if(file_exists($pixfile)) {
-      $fields['IMAGES'][$view] = $pixfile;
+  if(!empty($fields['RENDER'])) {
+    // render images
+    $command = 'rt -v 0 -M -R -s %d -o %s %s' . str_repeat(' %s', count($fields['RENDER'])) . '< %s';
+    $params = array_merge(array(variable_get('brlcad_raytrace_size', 512), $rtscript, $model), $fields['RENDER'], array($rtscript));
+    $output = brlcad_run_command($command, $params);
+
+    $command = 'pix-png -a %s > %s';
+    // include image paths
+    $views = explode(':', $views);
+    foreach($views as $key => $view) {
+      $pixfile = $rtscript . '.' . ($key + 1);
+      if(file_exists($pixfile)) {
+        $pngfile = $pixfile . '.png';
+        if(!is_null(brlcad_run_command($command, array($pixfile, $pngfile)))) {
+          $fields['IMAGES'][$view] = $pngfile;
+        }
+        unlink($pixfile);
+      }
     }
   }
   return $fields;
 }
 
 /**
- * Runs a BRLCAD specific command and returns the output of stdout. 
- * 
+ * Runs a BRLCAD specific command and returns the output of stdout.
+ *
  * @param $command command line using %s as tokens for arguments (and %% for %)
- * @param $params array of command argument strings 
+ * @param $params array of command argument strings
  * @param $env array of command environmental variables
  * @param $cwd string of current working directory
- * @return string output of the command 
+ * @return string output of the command
  */
 function brlcad_run_command($command, $params, $env = null, $cwd = null) {
   if(!preg_match('|^([^ ]+)(.*)$|', $command, $matches)) {
@@ -90,15 +110,15 @@ function brlcad_run_command($command, $params, $env = null, $cwd = null) {
   // prepare the command file
   $command = $matches[1];
   if($command[0] != '/') {
-    $command = variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/' . $command; 
+    $command = variable_get('brlcad_bin_path', '/usr/brlcad/bin') . '/' . $command;
   }
   $command = escapeshellcmd($command);
-  
+
   // prepare arguments
   foreach($params as $key => $param) {
     $params[$key] = escapeshellarg($param);
   }
-  
+
   // prepare full command line
   $command = $command . vsprintf($matches[2], $params);
 
@@ -112,7 +132,7 @@ function brlcad_run_command($command, $params, $env = null, $cwd = null) {
   }
   $output = stream_get_contents($pipes[1]);
   fclose($pipes[1]);
-
+  
   // It is important that you close any pipes before calling proc_close in order to avoid a deadlock
   $return_value = proc_close($process);
   if($return_value) {
@@ -124,12 +144,12 @@ function brlcad_run_command($command, $params, $env = null, $cwd = null) {
 
 /**
  * Runs a mged script on a given model. If no model is given, simply runs the given script.
- * 
+ *
  * @param $script filename of the script to run
  * @param $model filename of the model file (or null)
  * @param $env array of command environmental variables
  * @param $cwd string of current working directory
- * @return string output of the command 
+ * @return string output of the command
  */
 function brlcad_run_mged_script($script, $model = null, $env = null, $cwd = null) {
   $script = realpath($script);
@@ -137,14 +157,14 @@ function brlcad_run_mged_script($script, $model = null, $env = null, $cwd = null
   if(empty($script)) {
     return;
   }
-  $command = 'mged -cr %s 2>&1 < %s'; 
+  $command = 'mged -cr %s 2>&1 < %s';
   $params = array($model, $script);
 
   $output = brlcad_run_command($command, $params, $env, $cwd);
   if(is_null($output)) {
     return;
   }
-  
+
   // trim leading warning Opened in READ ONLY mode
   if(substr($output, 0, 24) == 'Opened in READ ONLY mode') {
     $output = substr($output, 25);
@@ -168,11 +188,11 @@ function brlcad_convert_file($input_file, $output_format, $objects = null) {
   if(is_string($input_file)) {
     $input_file['filepath'] = $input_file;
   }
-  $input_file['filename'] = empty($input_file['filename']) ? basename($input_file['filepath']) : $input_file['filename']; 
-  
+  $input_file['filename'] = empty($input_file['filename']) ? basename($input_file['filepath']) : $input_file['filename'];
+
   // find the input file information
   $input_format = brlcad_known_formats(pathinfo($input_file['filename'], PATHINFO_EXTENSION), true);
-  
+
   // if the input and output formats are the same, simply copy one field to the other
   if($input_format == $output_format) {
     $output_file = $input_file;
@@ -194,10 +214,10 @@ function brlcad_convert_file($input_file, $output_format, $objects = null) {
     }
   }
   if(empty($output_file['filesize'])) {
-    $output_file['filesize'] = filesize($output_file['filepath']);  
+    $output_file['filesize'] = filesize($output_file['filepath']);
   }
   if(empty($output_file['filemime'])) {
-    $output_file['filemime'] = file_get_mimetype($output_file['filepath']);  
+    $output_file['filemime'] = file_get_mimetype($output_file['filepath']);
   }
   if(empty($output_file['description'])) {
     $output_file['description'] = $output_file['filename'];
@@ -227,7 +247,7 @@ function brlcad_convert_brlcad2other($output_format, $input, $output, $objects) 
 
 /**
  * Proxy function for conversion from another format to g.
- * 
+ *
  * @param $input_format name of the input format
  * @param $input filename of the input file
  * @param $output filename of the output file
@@ -244,7 +264,7 @@ function brlcad_convert_other2brlcad($input_format, $input, $output) {
 
 /**
  * Convert g file to asc
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @return boolean true if conversion succeded
@@ -257,12 +277,12 @@ function brlcad_convert_brlcad2asc($input, $output) {
   $command = 'g2asc %s %s';
   $params = array($input, $output);
   $result = brlcad_run_command($command, $params);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Convert asc file to g
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @return boolean true if conversion succeded
@@ -275,12 +295,12 @@ function brlcad_convert_asc2brlcad($input, $output) {
   $command = 'asc2g %s %s';
   $params = array($input, $output);
   $result = brlcad_run_command($command, $params);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Convert g file to acad
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @param $objects array of object names to convert
@@ -294,12 +314,12 @@ function brlcad_convert_brlcad2acad($input, $output, $objects) {
   $command = 'g-acad -o %s %s' . str_repeat(' %s', count($objects));
   array_unshift($objects, $output, $input);
   $result = brlcad_run_command($command, $objects);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Convert g file to dxf
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @param $objects array of object names to convert
@@ -313,12 +333,12 @@ function brlcad_convert_brlcad2autocad($input, $output, $objects) {
   $command = 'g-dxf -o %s %s' . str_repeat(' %s', count($objects));
   array_unshift($objects, $output, $input);
   $result = brlcad_run_command($command, $objects);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Convert dxf file to g
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @return boolean true if conversion succeded
@@ -331,12 +351,12 @@ function brlcad_convert_autocad2brlcad($input, $output) {
   $command = 'dxf-g %s %s';
   $params = array($input, $output);
   $result = brlcad_run_command($command, $params);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Convert g file to euclid
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @param $objects array of object names to convert
@@ -350,12 +370,12 @@ function brlcad_convert_brlcad2euclid($input, $output, $objects) {
   $command = 'g-euclid -o %s %s' . str_repeat(' %s', count($objects));
   array_unshift($objects, $output, $input);
   $result = brlcad_run_command($command, $objects);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Convert euclid file to g
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @return boolean true if conversion succeded
@@ -368,12 +388,12 @@ function brlcad_convert_euclid2brlcad($input, $output) {
   $command = 'euclid-g -o %s -i %s';
   $params = array($output, $input);
   $result = brlcad_run_command($command, $params);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Convert g file to iges
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @param $objects array of object names to convert
@@ -387,12 +407,12 @@ function brlcad_convert_brlcad2iges($input, $output, $objects) {
   $command = 'g-iges -o %s %s' . str_repeat(' %s', count($objects));
   array_unshift($objects, $output, $input);
   $result = brlcad_run_command($command, $objects);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Convert iges file to g
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @return boolean true if conversion succeded
@@ -405,12 +425,12 @@ function brlcad_convert_iges2brlcad($input, $output) {
   $command = 'iges-g -o %s %s';
   $params = array($output, $input);
   $result = brlcad_run_command($command, $params);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Convert g file to stl
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @param $objects array of object names to convert
@@ -424,12 +444,12 @@ function brlcad_convert_brlcad2stl($input, $output, $objects) {
   $command = 'g-stl -o %s %s' . str_repeat(' %s', count($objects));
   array_unshift($objects, $output, $input);
   $result = brlcad_run_command($command, $objects);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Convert stl file to g
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @return boolean true if conversion succeded
@@ -442,13 +462,13 @@ function brlcad_convert_stl2brlcad($input, $output) {
   $command = 'stl-g %s %s';
   $params = array($input, $output);
   $result = brlcad_run_command($command, $params);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 
 /**
  * Convert g file to tankill
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @param $objects array of object names to convert
@@ -462,12 +482,12 @@ function brlcad_convert_brlcad2tankill($input, $output, $objects) {
   $command = 'g-tankill -o %s %s' . str_repeat(' %s', count($objects));
   array_unshift($objects, $output, $input);
   $result = brlcad_run_command($command, $objects);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Convert tankill file to g
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @return boolean true if conversion succeded
@@ -480,13 +500,13 @@ function brlcad_convert_tankill2brlcad($input, $output) {
   $command = 'tankill-g -o %s -i %s';
   $params = array($output, $input);
   $result = brlcad_run_command($command, $params);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 
 /**
  * Convert g file to vrml
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @param $objects array of object names to convert
@@ -497,15 +517,16 @@ function brlcad_convert_brlcad2vrml($input, $output, $objects) {
   if(empty($input) || empty($objects)) {
     return false;
   }
+  set_time_limit(0);
   $command = 'g-vrml -o %s %s' . str_repeat(' %s', count($objects));
   array_unshift($objects, $output, $input);
   $result = brlcad_run_command($command, $objects);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Convert g file to x3d
- * 
+ *
  * @param $input filename of the input file
  * @param $output filename of the output file
  * @param $objects array of object names to convert
@@ -519,13 +540,13 @@ function brlcad_convert_brlcad2x3d($input, $output, $objects) {
   $command = 'g-x3d -o %s %s' . str_repeat(' %s', count($objects));
   array_unshift($objects, $output, $input);
   $result = brlcad_run_command($command, $objects);
-  return !is_null($result); 
+  return !is_null($result);
 }
 
 /**
  * Updates the extension of a file to match its format.
- * @param $filename file name 
- * @param $format format 
+ * @param $filename file name
+ * @param $format format
  * @return string filename of the file with the extension updated
  */
 function brlcad_fix_extension($filename, $format) {
@@ -543,13 +564,13 @@ function brlcad_fix_extension($filename, $format) {
   if($extension !== '') {
     $filename = substr($filename, 0, -strlen($extension) - 1);
   }
-  return $filename . '.' . $known_extension; 
+  return $filename . '.' . $known_extension;
 }
 
 /**
  * Returns an array with the know formats and their associated extension.
  * @param $format name of the format or extension (used for a specific lookup)
- * @param $use_extension true if do an extension lookup, or false to do a format name lookup is performed 
+ * @param $use_extension true if do an extension lookup, or false to do a format name lookup is performed
  */
 function brlcad_known_formats($format = null, $use_extension = false) {
   static $known_formats = array(

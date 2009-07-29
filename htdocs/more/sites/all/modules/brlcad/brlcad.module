@@ -16,7 +16,7 @@ function brlcad_perm() {
 function brlcad_menu($may_cache) {
   $links = array();
   if($may_cache) {
-      
+
   } else {
     $links[] = array(
       'path' => 'admin/content/brlcad',
@@ -52,6 +52,9 @@ function brlcad_general_settings() {
     $flags[$flag] = $data->title;
   }
   $form = array();
+  $form['process'] = array(
+    '#value' => t('Start processing models that require BRLCAD processing !now.', array('!now' => l(t('now'), 'admin/content/brlcad/process'))),
+  );
   $form['system'] = array(
     '#type' => 'fieldset',
     '#title' => t('BRL-CAD system'),
@@ -81,7 +84,7 @@ function brlcad_general_settings() {
     '#title' => t('BRL-CAD processing time limit'),  
     '#type' => 'textfield',
     '#default_value' => variable_get('brlcad_processing_limit', 600),
-    '#description' => t('Enter the number of seconds after which processing will stop.'),
+    '#description' => t('Enter the number of seconds after which no other processing will be started. Processing extending after this value will be allowed to finish.'),
   );
   $form['raytrace'] = array(
     '#type' => 'fieldset',
@@ -115,10 +118,10 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
       break;
     case 'submit':
       if(empty($node->nid)) {
-      	// this this is a new node, it will require processing
-      	$node->brlcad_processing = true;
+        // this this is a new node, it will require processing
+        $node->brlcad_processing = true;
       } else {
-      	// if this is an updated node, load the old version (from cache)
+        // if this is an updated node, load the old version (from cache)
         $node_current = node_load($node->nid);
 
         // if the model file changed, it will require processing
@@ -134,12 +137,12 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
             }
           }
         }
-        
+
         // if the rendering objects list changed, it will require processing
         if($node->field_render_objects != $node_current->field_render_objects) {
           $node->brlcad_processing = true;
         }
-        
+
         // if we'll do brlcad processing, then clean up the node
         if(!empty($node->brlcad_processing)) {
           _brlcad_node_clear_data($node);
@@ -173,35 +176,35 @@ function brlcad_form_alter($form_id, &$form) {
     return;
   }
   $node = $form['#node'];
-  
+
   $form['group_files']['field_original_file']['#title'] = t('Model file');
   // show collapsed file fieldsets
-  $form['group_files']['field_image_file']['#collapsible'] = true;
-  $form['group_files']['field_image_file']['#collapsed'] = true;
+  $form['field_image_file']['#collapsible'] = true;
+  $form['field_image_file']['#collapsed'] = true;
   foreach(_brlcad_visible_formats() as $field => $format) {
     $form['group_files'][$field]['#collapsible'] = true;
     $form['group_files'][$field]['#collapsed'] = true;
   }
-  
+
   if(empty($node->nid)) {
     // this is a new node, hide all metadata
     unset($form['group_metadata']);
   } else {
     // this is an existing node
-    
+
     // hide uneditable fields
     unset($form['group_metadata']['field_units']);
     unset($form['group_metadata']['field_dbversion']);
     unset($form['group_metadata']['field_summary']);
     unset($form['group_metadata']['field_objects']);
-    
+
     // hide render objects field if it's not useful
     if(empty($node->field_objects[0]['value'])) {
       unset($form['group_metadata']['field_render_objects']);
     }
 
     // hide metadata if the user can't edit metadata
-    if(!user_access('edit metadata')) {      
+    if(!user_access('edit metadata')) {
       if(empty($node->field_render_objects)) {
         unset($form['group_metadata']);
       } else {
@@ -221,17 +224,17 @@ function brlcad_form_alter($form_id, &$form) {
         }
       }
     }
-  } 
+  }
 }
 
 /**
- * Flags (or unflags) a model node for BRLCAD processing. 
+ * Flags (or unflags) a model node for BRLCAD processing.
  * @param $node node to flag
- * @param $enable_flag true if the flag should be flaged, false otherwise 
+ * @param $enable_flag true if the flag should be flaged, false otherwise
  * @return boolean current flaging state
  */
 function brlcad_processing_flag(&$node, $enable_flag) {
-  $flag = flag_get_flag(variable_get('brlcad_processing_flag', '')); 
+  $flag = flag_get_flag(variable_get('brlcad_processing_flag', ''));
   if (!$flag || $flag->is_flagged($node->nid) == $enable_flag) {
     // Flag does not exist.
     return false;
@@ -245,7 +248,7 @@ function brlcad_processing_flag(&$node, $enable_flag) {
 }
 
 /**
- * Process nodes marked for BRLCAD processing. 
+ * Process nodes marked for BRLCAD processing.
  */
 function brlcad_process_nodes($time_limit = -1) {
   $processingflag = variable_get('brlcad_processing_flag', '');
@@ -287,9 +290,9 @@ function brlcad_process_node(&$node) {
  */
 function brlcad_node_import_data(&$node) {
   brlcad_load_api();
-  
+
   _brlcad_node_clear_data($node);
-  
+
   // raytrace and get metadata
   $model = _brlcad_node_get_model($node);
   $objects = null;
@@ -298,11 +301,11 @@ function brlcad_node_import_data(&$node) {
     $objects = $objects['value'];
   }
   $fields = brlcad_metadata_and_rt($model['filepath'], $objects);
-  if(!$fields) {
+  if(empty($fields)) {
     return;
   }
 
-  // import metadata values 
+  // import metadata values
   if(empty($node->field_title[0]['value'])) {
     $node->field_title[0]['value'] = trim($fields['TITLE']);
   }
@@ -310,30 +313,25 @@ function brlcad_node_import_data(&$node) {
   $node->field_units[0]['value'] = trim($fields['UNITS']);
   $node->field_summary[0]['value'] = trim($fields['SUMMARY']);
   $node->field_objects[0]['value'] = trim($fields['OBJECTS']);
-  
+  $node->field_render_objects = content_transpose_array_rows_cols(array('value' => $fields['RENDER']));
+  unset($fields['OBJECTS']);
   // import images
-  $command = 'pix-png -a %s > %s';
-  foreach($fields['IMAGES'] as $view => $pixfile) {
-    $pngfile = str_replace('.pix', '.png', $pixfile);
-    $result = brlcad_run_command($command, array($pixfile, $pngfile));
-    unlink($pixfile);
-    if(!is_null($result)) {
-      $node->field_image_file[] = array(
-        'title' => 'View ' . $view . ' (auto)',
-        'filename' => str_replace('.', '_', $model['filename']) . '_' . str_replace(' ', '_', $view) . '.png',
-        'filepath' => $pngfile,
-        'filemime' => file_get_mimetype($pngfile),
-        'fid' => 'upload',
-        'filesize' => filesize($pngfile),
-      );
-    }
+  foreach($fields['IMAGES'] as $view => $pngfile) {
+    $node->field_image_file[] = array(
+      'title' => 'View ' . $view . ' (auto)',
+      'filename' => str_replace('.', '_', $model['filename']) . '_' . str_replace(' ', '_', $view) . '.png',
+      'filepath' => $pngfile,
+      'filemime' => file_get_mimetype($pngfile),
+      'fid' => 'upload',
+      'filesize' => filesize($pngfile),
+    );
   }
   return true;
 }
 
 /**
  * Converts a generic model to a BRLCAD model.
- * @param $node object containin model node data 
+ * @param $node object containin model node data
  */
 function brlcad_node_create_brlcad_model(&$node) {
   brlcad_load_api();
@@ -342,7 +340,7 @@ function brlcad_node_create_brlcad_model(&$node) {
   if(empty($node->field_original_file[0]['filepath']) || !empty($node->field_brlcad_file[0]['filepath'])) {
     return;
   }
-  
+
   // create the brlcad file
   $file = brlcad_convert_file($node->field_original_file[0], 'brlcad');
   $node->field_brlcad_file[0] = $file;
@@ -350,11 +348,11 @@ function brlcad_node_create_brlcad_model(&$node) {
 
 /**
  * Converts a the BRLCAD model to other models.
- * @param $node object containin model node data 
+ * @param $node object containin model node data
  */
 function brlcad_node_create_other_models(&$node) {
   brlcad_load_api();
-  
+
   // copy original file to the fields with the same format
   if(!empty($node->field_original_file[0]['filepath'])) {
     $original_format = brlcad_known_formats(pathinfo($node->field_original_file[0]['filename'], PATHINFO_EXTENSION), true);
@@ -364,9 +362,9 @@ function brlcad_node_create_other_models(&$node) {
       }
     }
   }
-  
+
   // no brlcad file ? (shouln't happen)
-  if(empty($node->field_brlcad_file[0]['filepath'])) { 
+  if(empty($node->field_brlcad_file[0]['filepath'])) {
     return;
   }
   preg_match_all('|^([^;]*);|m', $node->field_objects[0]['value'], $objects);
@@ -393,7 +391,7 @@ function brlcad_load_api() {
 }
 
 /**
- * Centralized function to return the supported formats.  
+ * Centralized function to return the supported formats.
  * @return array list of supported formats
  */
 function _brlcad_visible_formats($use_cache = true) {
@@ -404,25 +402,25 @@ function _brlcad_visible_formats($use_cache = true) {
     $fields = content_types(BRLCAD_NODETYPE);
     // prepare the formats array
     $formats = array('field_brlcad_file' => 'brlcad');
-    
+
     // search fields that match these criterias
     // - it's not the original upload field
     // - it's a file field
     // - fits field_format_file the naming convention
     // - can be converted from BRLCAD format
     foreach($fields['fields'] as $name => $field) {
-      if($name != 'field_original_file' && $field['type'] == 'file' && 
-        preg_match('|^field_(.+)_file$|', $name, $matches) && function_exists('brlcad_convert_brlcad2' . $matches[1])) {
-        $formats[$name] = $matches[1]; 
+      if($name != 'field_original_file' && $field['type'] == 'file' &&
+      preg_match('|^field_(.+)_file$|', $name, $matches) && function_exists('brlcad_convert_brlcad2' . $matches[1])) {
+        $formats[$name] = $matches[1];
       }
     }
     variable_set('brlcad_formats', $formats);
-  } 
+  }
   return $formats;
 }
 
 /**
- * Helper function to retrieve information about the BRLCAD model file of a model node. 
+ * Helper function to retrieve information about the BRLCAD model file of a model node.
  * @param $node node to search for model
  * @return array value of the CCK model_file field (including fid, filepath, filename, etc)
  */
@@ -448,7 +446,7 @@ function _brlcad_node_clear_data(&$node) {
   $node->field_units[0]['value'] = null;
   $node->field_summary[0]['value'] = null;
   $node->field_objects[0]['value'] = null;
-  
+
   // delete old images
   if(is_array($node->field_image_file)) {
     foreach($node->field_image_file as $key => $value) {
@@ -482,8 +480,8 @@ function _brlcad_supported_versions() {
 }
 
 /**
- * Helper function to create fake admin user object. 
- * 
+ * Helper function to create fake admin user object.
+ *
  * @return object fake admin user object
  */
 function _brlcad_fakeuser() {
