@@ -1251,3 +1251,16 @@ table.system-status-report tr.ok, table.system-status-report tr.ok th {
     display: inline;
     padding: 2px;
 }
+
+.filefield-item, .filefield-icon {
+	display: inline;
+	float: none;
+}
+
+.field-field-image-file {
+    float: right;
+}
+
+#center form.fivestar-widget {
+    margin: 0;
+}

@@ -122,3 +122,20 @@ function _phptemplate_variables($hook, $vars) {
   }
   return array();
 }
+
+function phptemplate_filefield($file) {
+  $output = '';
+  if (user_access('view filefield uploads') && is_file($file['filepath']) && $file['list']) {
+    $path = ($file['fid'] == 'upload')
+            ? file_create_filename($file['filename'], file_create_path($field['widget']['file_path']))
+            : $file['filepath'];
+    $output = '<div class="filefield-item">';
+    $output .= theme('filefield_icon', $file);
+    $output .= l($file['description'], file_create_url($path));
+    if(isset($file['downloads'])) {
+      $output .= ' (' . format_plural($file['downloads'], '@count download', '@count downloads') . ')';
+    }
+    $output .= '</div>';
+  }
+  return $output;
+}
