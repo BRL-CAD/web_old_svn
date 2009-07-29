@@ -109,6 +109,10 @@ DirectoryIndex index.php
   #RewriteCond %{QUERY_STRING} ^mod=([^&]+)$
   #RewriteRule module.php index.php?q=%1 [L]
 
+  RewriteCond %{QUERY_STRING} =""
+  RewriteCond %{REQUEST_URI} ^/files/models
+  RewriteRule ^(.*)$ index.php?q=download_count&file=$1 [L,QSA]
+
   # Rewrite current-style URLs of the form 'x' to the form 'index.php?q=x'.
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
