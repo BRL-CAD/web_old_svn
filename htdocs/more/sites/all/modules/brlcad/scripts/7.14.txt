@@ -6,7 +6,6 @@ set glob_compat_mode 0; concat
 #
 # get parameters sent from Drupal
 #
-set rtscript $::env(rtscript); concat
 set views $::env(views); concat
 set objects $::env(objects); concat
 
@@ -62,8 +61,8 @@ foreach x $objects {
   draw $x
 }
 
-set offset 0; units mm; concat
-set rtscript [open $rtscript w]; concat
+units mm; concat
+puts DATABASE:RAYTRACE
 foreach view [split $views ":"] {
   # set the view 
   ae $view
@@ -74,10 +73,7 @@ foreach view [split $views ":"] {
   # zoom in just a bit
   zoom 1.2
 
-  # increase the output file index 
-  incr offset; concat 
-
   # raytrace the model
-  puts $rtscript "viewsize [view size];\norientation [view quat];\neye_pt [view eye];\nstart $offset;\nclean;\nend;\n"
+  puts "viewsize [view size]; orientation [view quat]; eye_pt [view eye]; clean; end;"
 }
-close $rtscript
+puts ENDDATABASE

@@ -19,7 +19,6 @@ function brlcad_metadata_and_rt($model, $objects = null) {
 
   // prepare environment variables
   $views = str_replace(array("\r\n", "\n"), ':', variable_get('brlcad_raytrace_ae', ''));
-  $rtscript = tempnam(realpath(file_directory_temp()), 'rtimg_');
   if(is_array($objects)) {
     $objects = implode(' ', $objects);
   }
@@ -27,7 +26,6 @@ function brlcad_metadata_and_rt($model, $objects = null) {
     $objects = '*';
   }
   $env = array(
-    'rtscript' => $rtscript,
     'views' => $views,
     'objects' => $objects, 
   );
@@ -47,7 +45,7 @@ function brlcad_metadata_and_rt($model, $objects = null) {
   }
   
   $fields = array_combine($fields[1], $fields[2]);
-  $required_fields = array('TITLE', 'VERSION', 'SUMMARY', 'UNITS', 'OBJECTS', 'RENDER');
+  $required_fields = array('TITLE', 'VERSION', 'SUMMARY', 'UNITS', 'OBJECTS', 'RENDER', 'RAYTRACE');
   foreach($required_fields as $field) {
     if(!isset($fields[$field])) {
       $fields[$field] = null;
@@ -70,26 +68,33 @@ function brlcad_metadata_and_rt($model, $objects = null) {
   $fields['RENDER'] = $render;
   unset($render);
   
+  // render images
+  $fields['RAYTRACE'] = explode("\n", $fields['RAYTRACE']);
   $fields['IMAGES'] = array();
   if(!empty($fields['RENDER'])) {
-    // render images
-    $command = 'rt -v 0 -M -R -s %d -o %s %s' . str_repeat(' %s', count($fields['RENDER'])) . '< %s';
-    $params = array_merge(array(variable_get('brlcad_raytrace_size', 512), $rtscript, $model), $fields['RENDER'], array($rtscript));
-    $output = brlcad_run_command($command, $params);
-
-    $command = 'pix-png -a %s > %s';
-    // include image paths
+    $tmpfile = tempnam(realpath(file_directory_temp()), 'rtimg_');
+    $rtfile = $tmpfile . '.rt';
+    $pixfile = $tmpfile . '.pix';
+    
+    $rtcmd = 'rt -v 0 -M -R -s %d -o %s %s' . str_repeat(' %s', count($fields['RENDER'])) . '< %s';
+    $params = array_merge(array(variable_get('brlcad_raytrace_size', 512), $pixfile, $model), $fields['RENDER'], array($rtfile));
+    
+    $pngcmd = 'pix-png -a %s > %s';
     $views = explode(':', $views);
-    foreach($views as $key => $view) {
-      $pixfile = $rtscript . '.' . ($key + 1);
+    foreach($fields['RAYTRACE'] as $key => $rtscript) {
+      file_put_contents($rtfile, $rtscript);
+      $output = brlcad_run_command($rtcmd, $params);
+
       if(file_exists($pixfile)) {
-        $pngfile = $pixfile . '.png';
-        if(!is_null(brlcad_run_command($command, array($pixfile, $pngfile)))) {
-          $fields['IMAGES'][$view] = $pngfile;
+        $pngfile = $tmpfile . $key . '.png';
+        if(!is_null(brlcad_run_command($pngcmd, array($pixfile, $pngfile)))) {
+          $fields['IMAGES'][$views[$key]] = $pngfile;
         }
         unlink($pixfile);
       }
+      unlink($rtfile);
     }
+    unlink($tmpfile);
   }
   return $fields;
 }
