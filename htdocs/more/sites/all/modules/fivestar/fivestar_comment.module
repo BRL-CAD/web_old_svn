@@ -1,5 +1,5 @@
 <?php
-// $Id: fivestar_comment.module,v 1.1.4.7 2009/04/10 21:25:20 quicksketch Exp $
+// $Id: fivestar_comment.module,v 1.1.4.9 2009/07/01 00:28:51 quicksketch Exp $
 
 define('FIVESTAR_COMMENT_DISABLED', 0);
 define('FIVESTAR_COMMENT_OPTIONAL', 1);
@@ -172,7 +172,7 @@ function fivestar_comment_update($cid, $nid, $uid, $value) {
 function fivestar_comment_insert($cid, $nid, $uid, $value) {
   $vote = _fivestar_cast_vote('node', $nid, $value, 'vote', $uid);
   votingapi_recalculate_results('node', $nid);
-  db_query('INSERT INTO {fivestar_comment} (cid, value) VALUES (%d, %d)', $cid, $vote->vote_id, $value);
+  db_query('INSERT INTO {fivestar_comment} (cid, vote_id, value) VALUES (%d, %d, %d)', $cid, $vote->vote_id, $value);
 }
 
 /**

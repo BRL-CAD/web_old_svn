@@ -1,5 +1,5 @@
 <?php
-// $Id: fivestar.module,v 1.2.2.115 2009/04/30 20:58:33 quicksketch Exp $
+// $Id: fivestar.module,v 1.2.2.121 2009/06/30 23:59:50 quicksketch Exp $
 
 /**
  * @file
@@ -775,7 +775,7 @@ function _fivestar_cast_vote($type, $cid, $value, $tag = NULL, $uid = NULL, $ski
  * @return boolean
  */
 function fivestar_validate_target($type, $id, $uid = NULL) {
-  if (!isset($account)) {
+  if (!isset($uid)) {
     $uid = $GLOBALS['user']->uid;
   }
 
@@ -801,8 +801,8 @@ function fivestar_validate_target($type, $id, $uid = NULL) {
  *   Type of target (currently only node is supported).
  * @param $id
  *   Identifier within the type (in this case nid).
- * @param $account
- *   The user trying to cast the vote.
+ * @param $uid
+ *   The user ID trying to cast the vote.
  *
  * @return boolean or NULL
  *   Returns TRUE if voting is supported on this object.
@@ -811,7 +811,7 @@ function fivestar_validate_target($type, $id, $uid = NULL) {
  *   of permissions defined in other modules, return FALSE. Note if all
  *   modules return NULL, stating no preference, then access will be denied.
  */
-function fivestar_fivestar_access($type, $id, $account) {
+function fivestar_fivestar_access($type, $id, $uid) {
   if ($type == 'node' && $node = node_load($id)) {
     if (variable_get('fivestar_'. $node->type, 0)) {
       return TRUE;
@@ -861,7 +861,7 @@ function fivestar_nodeapi(&$node, $op, $teaser, $page) {
         switch ($position) {
           case 'above':
           case 'below':
-            if (user_access('rate content')) {
+            if (user_access('rate content') && fivestar_validate_target('node', $node->nid)) {
               $node->content['fivestar_widget'] = array(
                 '#value' => fivestar_widget_form($node),
                 '#weight' => $position == 'above' ? -10 : 50,
@@ -873,7 +873,7 @@ function fivestar_nodeapi(&$node, $op, $teaser, $page) {
           case 'below_static':
             $stars = variable_get('fivestar_stars_'. $node->type, 5);
             $node->content['fivestar_widget'] = array(
-              '#value' => fivestar_static('node', $node->nid, NULL, $node->type),
+              '#value' => fivestar_static('node', $node->nid, 'vote', $node->type),
               '#weight' => strpos($position, 'above') === 0 ? -10 : 50,
             );
             break;
@@ -909,7 +909,6 @@ function fivestar_link($type, $node = NULL, $teaser = FALSE) {
 
 
 function fivestar_block($op = 'list', $delta = 0, $edit = array()) {
-  global $user;
   switch ($op) {
     case 'list':
       $blocks[0]['info'] = t('Fivestar: Rate this node');
@@ -935,17 +934,22 @@ function fivestar_widget_form($node) {
 }
 
 /**
- * Get a private token used to protect links from spoofing - CSRF.
+ * Get a private token used to protect links from CSRF attacks.
  */
-function fivestar_get_token($seed) {
-  return drupal_get_token($seed);
+function fivestar_get_token($value) {
+  global $user;
+
+  // Anonymous users don't get a session ID, which breaks page caching.
+  $session_id = $user->uid ? session_id() : '';
+  $private_key = drupal_get_private_key();
+  return md5($session_id . $value . $private_key);
 }
 
 /**
  * Check to see if a token value matches the specified node.
  */
-function fivestar_check_token($token, $seed) {
-  return drupal_get_token($seed) == $token;
+function fivestar_check_token($token, $value) {
+  return fivestar_get_token($value) == $token;
 }
 
 /**
@@ -1645,6 +1649,7 @@ function fivestar_views_widget_handler($op, $filter, $value, &$query, $summary) 
     'content_id' => $content_id,
     'autosubmit' => TRUE,
     'title' => FALSE,
+    'tag' => 'vote',
     'feedback_enable' => $summary ? variable_get('fivestar_feedback_'. $node_type, 1) : FALSE,
     'labels_enable' => $summary ? variable_get('fivestar_labels_enable_'. $node_type, 1) : FALSE,
     'labels' => $summary ? variable_get('fivestar_labels_'. $node_type, array()) : array(),
