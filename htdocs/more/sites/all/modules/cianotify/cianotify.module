@@ -1,0 +1,182 @@
+<?php //$Id$
+
+/**
+ * Implementaion of hook_menu
+ */
+function cianotify_menu($maycache) {
+  $links = array();
+  if($maycache) {
+    $links[] = array(
+      'path' => 'admin/settings/cianotify',
+      'title' => t('CIA Notify'),
+      'callback' => 'drupal_get_form',
+      'callback arguments' => 'cianotify_settings', 
+    ); 
+  }
+  return $links;
+}
+
+/**
+ * Implementation of form_settings
+ */
+function cianotify_settings() {
+  $form = array();
+  $form['cianotifyto'] = array(
+    '#type' => 'textfield',
+    '#default_value' => variable_get('cianotifyto', 'cia@cia.vc'),
+    '#title' => t('CIA server email'),
+    '#require' => true,
+  );
+  $form['cianotifysubject'] = array(
+    '#type' => 'textfield',
+    '#default_value' => variable_get('cianotifysubject', 'DeliverXML'),
+    '#title' => t('CIA email subject'),
+    '#require' => true,
+  );
+  $form['cianotifyproject'] = array(
+    '#type' => 'textfield',
+    '#default_value' => variable_get('cianotifyproject', 'project'),
+    '#title' => t('Project'),
+    '#require' => true,
+  );
+  $form['cianotifymodule'] = array(
+    '#type' => 'textfield',
+    '#default_value' => variable_get('cianotifymodule', 'module'),
+    '#title' => t('Module'),
+    '#require' => true,
+  );
+  $form['cianotifybranch'] = array(
+    '#type' => 'textfield',
+    '#default_value' => variable_get('cianotifybranch', 'branch'),
+    '#title' => t('Branch'),
+    '#require' => true,
+  );
+  // user operations
+  $form['cianotify_user'] = array(
+    '#type' => 'select',
+    '#title' => t('Send notifications on user operations'),
+    '#options' => array('insert' => 'insert', 'update' => 'update', 'delete' => 'delete', 'login' => 'login', 'logout' => 'logout'),
+    '#multiple' => true,
+    '#default_value' => variable_get('cianotify_user', null),
+    '#size' => 5,
+  );
+  
+  // comment operations
+  $form['cianotify_comment'] = array(
+    '#type' => 'select',
+    '#title' => t('Send notifications on comments'),
+    '#options' => array('insert' => 'insert', 'update' => 'update', 'delete' => 'delete', 'publish' => 'publish', 'unpublish' => 'unpublish'),
+    '#multiple' => true,
+    '#default_value' => variable_get('cianotify_comment', null),
+    '#size' => 5,
+  );
+
+  // node operations  
+  foreach(node_get_types('names') as $key => $name) {
+    $form['cianotify_node' . $key] = array(
+      '#type' => 'select',
+      '#title' => t('Send notifications on !name nodes', array('!name' => $name)),
+      '#options' => array('insert' => 'insert', 'update' => 'update', 'delete' => 'delete', 'delete revision' => 'delete revision'),
+      '#multiple' => true,
+      '#default_value' => variable_get('cianotify_node' . $key, null),
+      '#size' => 4,
+    );
+  }
+
+  return system_settings_form($form);
+}
+
+/**
+ * Helper function used to notify CIA
+ */
+function _cianotify_sent($data) {
+  global $user;
+  // variable used in the message
+  extract($data, EXTR_PREFIX_ALL, 'msg');
+  $msg_revision = isset($msg_revision) ? check_plain($msg_revision) : '';
+  $msg_log = isset($msg_log) ? check_plain($msg_log) : '';
+  $msg_url = isset($msg_url) ? check_plain($msg_url) : url();
+  $msg_timestamp = isset($msg_timestamp) ? check_plain($msg_timestamp) : time();
+  
+  // message metadata
+  $to = check_plain(variable_get('cianotifyto', 'cia@cia.vc'));
+  $subject = check_plain(variable_get('cianotifysubject', 'DeliverXML'));
+  $project = check_plain(variable_get('cianotifyproject', 'project'));
+  $module = check_plain(variable_get('cianotifymodule', 'module'));
+  $branch = check_plain(variable_get('cianotifybranch', 'branch'));
+  $author = check_plain($user->name);
+  $body = "<message>
+  <generator>
+    <name>CIA Notify module for Drupal</name>
+    <version>1.0</version>
+  </generator>
+  <source>
+    <project>$project</project>
+    <module>$module</module>
+    <branch>$branch</branch>
+  </source>  
+  <body>
+    <commit>
+      <revision>$msg_revision</revision>
+      <author>$author</author>
+      <log>$msg_log</log>
+      <url>$msg_url</url>
+    </commit>
+  </body>
+  <timestamp>$msg_timestamp</timestamp>
+</message>";
+  return drupal_mail('cianotify', $to, $subject, $body, null, array('Content-Type' => 'text/xml'));
+}
+
+/**
+ * Implementatio of hook_nodeapi
+ */
+function cianotify_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  $messages = variable_get('cianotify_node' . $node->type, null);
+  if(empty($messages[$op])) {
+    return;
+  }
+  $data = array(
+	  'timestamp' => $node->changed,
+	  'url' => url('node/'. $node->nid, null, null, true),
+	  'log' => t("!title (!op !type: !log)", array('!title' => $node->title, '!type' => $node->type, '!op' => $op, '!log' => $node->log)),
+	  'revision' => $node->vid,
+  );
+  _cianotify_sent($data);
+}
+
+/**
+ * Implementation of hook_comment
+ */
+function cianotify_comment(&$a1, $op) {
+  $messages = variable_get('cianotify_comment', null);
+  if(empty($messages[$op])) {
+    return;
+  }
+  $comment = (object) $a1;
+  $data = array(
+      'timestamp' => $comment->timestamp,
+      'url' => url('node/'. $comment->nid, null, 'comment-' . $comment->cid, true),
+      'log' => t('!title (!op comment)', array('!title' => $comment->subject, '!op' => $op)),
+      'revision' => $comment->cid,
+  );
+  _cianotify_sent($data);
+}
+
+/**
+ * Implementation of hook_user
+ * @see http://api.drupal.org/api/function/hook_user/5
+ */
+function cianotify_user($op, &$edit, &$account, $category = NULL) {
+  $messages = variable_get('cianotify_user', null);
+  if(empty($messages[$op])) {
+    return;
+  }  
+  $data = array(
+    'url' => url('user/'. $account->uid, null, null, true),
+    'log' => t('!user (!op user)', array('!user' => $account->name, '!op' => $op)),
+    'revision' => $account->uid,
+  );
+  _cianotify_sent($data);
+}
+
