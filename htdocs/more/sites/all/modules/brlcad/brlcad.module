@@ -275,6 +275,7 @@ function brlcad_process_node(&$node) {
   brlcad_node_create_brlcad_model($node);
   brlcad_node_import_data($node);
   brlcad_node_create_other_models($node);
+  $node->log = t('BRLCAD processing completed.');
 }
 
 /**
