@@ -62,7 +62,7 @@ function brlcad_general_settings() {
     '#type' => 'select',
     '#title' => t('Version'),
     '#options' => _brlcad_supported_versions(),
-    '#default_value' => variable_get('brlcad_version', '7.14'),
+    '#default_value' => variable_get('brlcad_version', 'generic'),
     '#required' => true,
   );
   $form['system']['brlcad_bin_path'] = array(
@@ -91,15 +91,21 @@ function brlcad_general_settings() {
   );
   $form['raytrace']['brlcad_raytrace_ae'] = array(
     '#type' => 'textarea',
-    '#title' => 'Views',
+    '#title' => t('Views'),
     '#description' => t('Enter raytracing azimuth elevation (and optionally twist) tuples for raytracing, one per line. An image will be generated for each tuple.'),
     '#default_value' => variable_get('brlcad_raytrace_ae', ''),
   );
   $form['raytrace']['brlcad_raytrace_size'] = array(
     '#type' => 'textfield',
-    '#title' => 'Size',
+    '#title' => t('Size'),
     '#description' => t('Enter number of pixels of the image.'),
     '#default_value' => variable_get('brlcad_raytrace_size', 512),
+  );
+  $form['raytrace']['brlcad_raytrace_skip_existing'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Skip existing images when raytracing'),
+    '#description' => t('Check this field to optimize raytracing performance, skipping views that have already been raytraced.'),
+    '#default_value' => variable_get('brlcad_raytrace_skip_existing', true),
   );
   return system_settings_form($form);
 }
@@ -119,31 +125,30 @@ function brlcad_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
         // this this is a new node, it will require processing
         $node->brlcad_processing = true;
       } else {
-        // if this is an updated node, load the old version (from cache)
+        // if this is an updated node, load the old version (from static cache)
         $node_current = node_load($node->nid);
+        
+        $delete_metadata = false;
+        $delete_images = false;
+        $delete_models = false;
 
         // if the model file changed, it will require processing
         if(empty($node->field_original_file[0]['filepath']) || $node->field_original_file[0]['filepath'] != $node_current->field_original_file[0]['filepath']) {
-          $node->brlcad_processing = true;
+          $delete_metadata = true;
+          $delete_models = true;
+          $delete_images = true;
           $node->field_render_objects = null;
-          $node->field_title[0]['value'] = null;
-
-          // delete the old models file
-          foreach(_brlcad_visible_formats() as $field => $format) {
-            if(!empty($node->{$field}[0]['filepath'])) {
-              $node->{$field}[0]['delete'] = true;
-            }
-          }
         }
 
         // if the rendering objects list changed, it will require processing
         if($node->field_render_objects != $node_current->field_render_objects) {
-          $node->brlcad_processing = true;
+          $delete_images = true;
         }
-
-        // if we'll do brlcad processing, then clean up the node
-        if(!empty($node->brlcad_processing)) {
-          _brlcad_node_clear_data($node);
+        
+        if($delete_images || $delete_metadata || $delete_models) {
+          $node->brlcad_processing = true;
+          // if we'll do brlcad processing, then clean up the node
+          _brlcad_node_clear_data($node, $delete_metadata, $delete_images, $delete_models);
         }
       }
       break;
@@ -172,9 +177,6 @@ function brlcad_form_alter($form_id, &$form) {
   $node = $form['#node'];
 
   $form['group_files']['field_original_file']['#title'] = t('Model file');
-  // show collapsed file fieldsets
-  $form['field_image_file']['#collapsible'] = true;
-  $form['field_image_file']['#collapsed'] = true;
 
   // hide additional file fields if the user can't manage files
   if(!user_access('manage files')) {
@@ -183,6 +185,7 @@ function brlcad_form_alter($form_id, &$form) {
     }
   } else {
     foreach(_brlcad_visible_formats() as $field => $format) {
+      // show collapsed file fieldsets
       $form['group_files'][$field]['#collapsible'] = true;
       $form['group_files'][$field]['#collapsed'] = true;
       // hide file model, if it's the same as the original file
@@ -286,8 +289,6 @@ function brlcad_process_node(&$node) {
 function brlcad_node_import_data(&$node) {
   brlcad_load_api();
 
-  _brlcad_node_clear_data($node);
-
   // raytrace and get metadata
   $model = _brlcad_node_get_model($node);
   $objects = null;
@@ -295,7 +296,29 @@ function brlcad_node_import_data(&$node) {
     $objects = content_transpose_array_rows_cols($node->field_render_objects);
     $objects = $objects['value'];
   }
-  $fields = brlcad_metadata_and_rt($model['filepath'], $objects);
+
+  // prepare views
+  $views = _brlcad_raytrace_views();
+  if(is_array($node->field_image_file)) {
+    $raytrace_skip_existing = variable_get('brlcad_raytrace_skip_existing', true);
+    foreach($node->field_image_file as $key => $file) {
+      // if this is an automatic view
+      if(preg_match('|^View (.+) \(auto\)$|', $file['title'], $matches)) {
+        if(!$raytrace_skip_existing) {
+          // if we don't skip existing, then delete the file
+          $node->field_image_file[$key]['flags']['delete'] = true;
+        } else if (false===($viewkey = array_search($matches[1], $views))) {
+          // if this view is not defined, then delete the file
+          $node->field_image_file[$key]['flags']['delete'] = true;
+        } else {
+          // if we skip existing and this view is defined, else skip view
+          unset($views[$viewkey]);          
+        }
+      }
+    }
+  }
+
+  $fields = brlcad_metadata_and_rt($views, variable_get('brlcad_raytrace_size', 512), $model['filepath'], $objects);
   if(empty($fields)) {
     return;
   }
@@ -433,20 +456,35 @@ function _brlcad_node_get_model(&$node) {
 
 /**
  * Helper function to clear metadata and raytraced images.
- * @param $node to clear
+ * @param $node node object to clear
+ * @param $delete_metadata boolean (true means delete metadata, except for title)
+ * @param $delete_images boolean (true means delete images)
+ * @param $delete_models boolean (true means delete model files)
  */
-function _brlcad_node_clear_data(&$node) {
+function _brlcad_node_clear_data(&$node, $delete_metadata, $delete_images, $delete_models) {
   // delete old data
-  $node->field_dbversion[0]['value'] = null;
-  $node->field_units[0]['value'] = null;
-  $node->field_summary[0]['value'] = null;
-  $node->field_objects[0]['value'] = null;
+  if($delete_metadata) {
+    $node->field_title[0]['value'] = null;
+    $node->field_dbversion[0]['value'] = null;
+    $node->field_units[0]['value'] = null;
+    $node->field_summary[0]['value'] = null;
+    $node->field_objects[0]['value'] = null;
+  }
 
   // delete old images
-  if(is_array($node->field_image_file)) {
+  if($delete_images && is_array($node->field_image_file)) {
     foreach($node->field_image_file as $key => $value) {
-      if(substr($node->field_image_file[$key]['title'], -7) == ' (auto)') {
+      if(preg_match('|^View (.+) \(auto\)$|', $node->field_image_file[$key]['title'])) {
         $node->field_image_file[$key]['flags']['delete'] = true;
+      }
+    }
+  }
+
+  // delete the old models file
+  if($delete_models) {
+    foreach(_brlcad_visible_formats() as $field => $format) {
+      if(!empty($node->{$field}[0]['filepath'])) {
+        $node->{$field}[0]['delete'] = true;
       }
     }
   }
@@ -506,4 +544,19 @@ function _brlcad_current_node_objects_list() {
     }
   }
   return $objects;
+}
+
+/**
+ * Parses and returns the list of views.
+ * @return array of "azimuth elevation twist" strings
+ */
+function _brlcad_raytrace_views() {
+  static $views;
+  if(!isset($views)) {
+    $views = explode("\n", variable_get('brlcad_raytrace_ae', '0 0'));
+    foreach($views as $key => $view) {
+      $views[$key] = trim($view);
+    }
+  }
+  return $views;
 }

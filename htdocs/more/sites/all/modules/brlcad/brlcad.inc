@@ -11,14 +11,13 @@
  * @param $objects array of object names to raytrace
  * @return array metadata fields and raytrace image paths
  */
-function brlcad_metadata_and_rt($model, $objects = null) {
+function brlcad_metadata_and_rt($views, $rtsize, $model, $objects = null) {
   // obtain model file
   if(empty($model)) {
     return;
   }
 
   // prepare environment variables
-  $views = str_replace(array("\r\n", "\n"), ':', variable_get('brlcad_raytrace_ae', ''));
   if(is_array($objects)) {
     $objects = implode(' ', $objects);
   }
@@ -26,7 +25,7 @@ function brlcad_metadata_and_rt($model, $objects = null) {
     $objects = '*';
   }
   $env = array(
-    'views' => $views,
+    'views' => implode(':', $views),
     'objects' => $objects, 
   );
 
@@ -77,10 +76,9 @@ function brlcad_metadata_and_rt($model, $objects = null) {
     $pixfile = $tmpfile . '.pix';
     
     $rtcmd = 'rt -v 0 -M -R -s %d -o %s %s' . str_repeat(' %s', count($fields['RENDER'])) . '< %s';
-    $params = array_merge(array(variable_get('brlcad_raytrace_size', 512), $pixfile, $model), $fields['RENDER'], array($rtfile));
+    $params = array_merge(array($rtsize, $pixfile, $model), $fields['RENDER'], array($rtfile));
     
     $pngcmd = 'pix-png -a %s > %s';
-    $views = explode(':', $views);
     foreach($fields['RAYTRACE'] as $key => $rtscript) {
       file_put_contents($rtfile, $rtscript);
       $output = brlcad_run_command($rtcmd, $params);
