@@ -179,7 +179,7 @@ function brlcad_form_alter($form_id, &$form) {
   $form['group_files']['field_original_file']['#title'] = t('Model file');
 
   // hide additional file fields if the user can't manage files
-  if(!user_access('manage files')) {
+  if(!user_access('manage files') || empty($node->nid)) {
     foreach(_brlcad_visible_formats() as $field => $format) {
       unset($form['group_files'][$field]);
     }
