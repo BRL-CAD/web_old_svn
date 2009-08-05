@@ -13,8 +13,9 @@
   <?php if ($picture) print $picture; ?>
   </div>
   <div style="float: left">
-  <?php if ($submitted) { ?><span class="submitted"><?php print $submitted; ?></span><?php } ?>
-  <?php if ($taxonomy) { ?><div class="terms"><?php print t('Tags:') . $terms ?></div><?php }?>
+  <?php if ($submitted) { ?><span class="submitted"><?php print $submitted; ?></span><?php }?>
+  <div class="terms"><?php echo t('License:'), phptemplate_vocabulary_links($node, 2); ?><br />
+  <?php echo t('Tags:'), phptemplate_vocabulary_links($node, 1); ?></div>
   </div>
   </div>
 

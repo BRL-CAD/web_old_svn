@@ -1264,3 +1264,7 @@ table.system-status-report tr.ok, table.system-status-report tr.ok th {
 #center form.fivestar-widget {
     margin: 0;
 }
+
+.terms, span.submitted {
+	line-height: 150%;
+}

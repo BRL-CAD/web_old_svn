@@ -139,3 +139,17 @@ function phptemplate_filefield($file) {
   }
   return $output;
 }
+
+function phptemplate_vocabulary_links(&$node, $vid) {
+  $links = array();
+  foreach ($node->taxonomy as $term) {
+    if($term->vid == $vid) {
+      $links['taxonomy_term_'. $term->tid] = array(
+        'title' => $term->name,
+        'href' => taxonomy_term_path($term),
+        'attributes' => array('rel' => 'tag', 'title' => strip_tags($term->description))
+      );
+    }
+  }
+  return theme('links', $links, array('class' => 'links inline'));
+}
