@@ -60,6 +60,8 @@ function tagadelic_menu($may_cache) {
 function tagadelic_nodeapi(&$node, $op, $teaser, $page) {
   if ($op == 'load') {
       $node->tags = tagadelic_node_get_terms($node);
+  } else if($op == 'insert' || $op == 'update' || $op == 'delete') {
+    cache_clear_all('tagadelic_cache_', 'cache', true);
   }
 }
 
