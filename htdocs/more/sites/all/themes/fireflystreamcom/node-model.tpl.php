@@ -34,7 +34,9 @@
   </div>
   <?php }?>
 
+  <?php if (!empty($links)) { ?>
   <div class="links clear-block">
-    <?php if (!empty($links)) echo $links; ?>
+    <?php echo $links; ?>
   </div>
+  <?php }?>
 </div>
