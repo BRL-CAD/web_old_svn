@@ -1,6 +1,4 @@
-<?php
-// $Id$
-?>
+<?php // $Id$ ?>
 <div id="node-<?php print $node->nid; ?>" class="node<?php if ($sticky) { print ' sticky'; } ?><?php if (!$status) { print ' node-unpublished'; } ?>">
 
 <?php if ($page == 0): ?>
@@ -27,10 +25,16 @@
     <?php print $node->content['body']['#value'] ?>
   </div>
 
-  <div class="clear-block">
-    <?php if ($links): ?>
-      <div class="links"><?php print $links; ?></div>
-    <?php endif; ?>
+  <?php if ($page) {?>
+  <div class="links clear-block">
+    <?php if (!empty($node->content['service_links']['#value'])) echo $node->content['service_links']['#value']; ?>
+	<div class="service-links"><div class="service-label"><?php echo t('Link to this page'), ':'?></div>
+	<input class="link-code" onfocus="this.select()" title="<?php echo t('Click to select the text.')?>" type="text" readonly="readonly" value="&lt;a href=&quot;<?php echo url('node/' . $node->nid, null, null, true) ?>&quot;&gt;<?php echo check_plain($node->title)?>&lt;/a&gt;" />
+	</div>
   </div>
+  <?php }?>
 
+  <div class="links clear-block">
+    <?php if (!empty($links)) echo $links; ?>
+  </div>
 </div>
