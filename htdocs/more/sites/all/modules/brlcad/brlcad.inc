@@ -160,7 +160,7 @@ function brlcad_run_mged_script($script, $model = null, $env = null, $cwd = null
   if(empty($script)) {
     return;
   }
-  $command = 'mged -c -r %s 2>&1 < %s';
+  $command = 'mged -c %s 2>&1 < %s'; /* should be mged -c -r but 7.14 has a read-only title command bug */
   $params = array($model, $script);
 
   $output = brlcad_run_command($command, $params, $env, $cwd);
