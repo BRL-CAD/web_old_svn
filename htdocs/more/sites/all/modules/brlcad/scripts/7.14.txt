@@ -70,8 +70,8 @@ foreach view [split $views ":"] {
   # auto set the viewing size 
   autoview
 
-  # zoom in just a bit
-  zoom 1.2
+  # zoom in a bit
+  zoom 1.5
 
   # raytrace the model
   puts "viewsize [view size]; orientation [view quat]; eye_pt [view eye]; clean; end;"
