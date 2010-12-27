@@ -51,7 +51,7 @@ function brlcad_general_settings() {
   }
   $form = array();
   $form['process'] = array(
-    '#value' => t('Start processing models that require BRLCAD processing !now.', array('!now' => l(t('now'), 'admin/content/brlcad/process'))),
+    '#value' => t('Start processing models that require BRL-CAD processing !now.', array('!now' => l(t('now'), 'admin/content/brlcad/process'))),
   );
   $form['system'] = array(
     '#type' => 'fieldset',
@@ -225,7 +225,7 @@ function brlcad_form_alter($form_id, &$form) {
 }
 
 /**
- * Flags (or unflags) a model node for BRLCAD processing.
+ * Flags (or unflags) a model node for BRL-CAD processing.
  * @param $node node to flag
  * @param $enable_flag true if the flag should be flaged, false otherwise
  * @return boolean current flaging state
@@ -245,7 +245,7 @@ function brlcad_processing_flag(&$node, $enable_flag) {
 }
 
 /**
- * Process nodes marked for BRLCAD processing.
+ * Process nodes marked for BRL-CAD processing.
  */
 function brlcad_process_nodes($time_limit = -1) {
   $processingflag = variable_get('brlcad_processing_flag', '');
@@ -270,7 +270,7 @@ function brlcad_process_nodes($time_limit = -1) {
 }
 
 /**
- * Does BRLCAD processing on a node.
+ * Does BRL-CAD processing on a node.
  * @param object $node node to process
  */
 function brlcad_process_node(&$node) {
@@ -278,11 +278,11 @@ function brlcad_process_node(&$node) {
   brlcad_node_create_brlcad_model($node);
   brlcad_node_import_data($node);
   brlcad_node_create_other_models($node);
-  $node->log = t('BRLCAD processing completed.');
+  $node->log = t('BRL-CAD processing completed.');
 }
 
 /**
- * Run BRLCAD scripts and imports the metadata and images for a node.
+ * Run BRL-CAD scripts and imports the metadata and images for a node.
  * @param $node
  * @return true if successfull
  */
@@ -348,7 +348,7 @@ function brlcad_node_import_data(&$node) {
 }
 
 /**
- * Converts a generic model to a BRLCAD model.
+ * Converts a generic model to a BRL-CAD model.
  * @param $node object containin model node data
  */
 function brlcad_node_create_brlcad_model(&$node) {
@@ -359,13 +359,13 @@ function brlcad_node_create_brlcad_model(&$node) {
     return;
   }
 
-  // create the brlcad file
+  // create the BRL-CAD file
   $file = brlcad_convert_file($node->field_original_file[0], 'brlcad');
   $node->field_brlcad_file[0] = $file;
 }
 
 /**
- * Converts a the BRLCAD model to other models.
+ * Converts a the BRL-CAD model to other models.
  * @param $node object containin model node data
  */
 function brlcad_node_create_other_models(&$node) {
@@ -402,7 +402,7 @@ function brlcad_node_create_other_models(&$node) {
 }
 
 /**
- * Helpder function to load the BRLCAD API.
+ * Helpder function to load the BRL-CAD API.
  */
 function brlcad_load_api() {
   require_once(drupal_get_path('module', 'brlcad') . '/brlcad.inc');
@@ -425,7 +425,7 @@ function _brlcad_visible_formats($use_cache = true) {
     // - it's not the original upload field
     // - it's a file field
     // - fits field_format_file the naming convention
-    // - can be converted from BRLCAD format
+    // - can be converted from BRL-CAD format
     foreach($fields['fields'] as $name => $field) {
       if($name != 'field_original_file' && $field['type'] == 'file' &&
       preg_match('|^field_(.+)_file$|', $name, $matches) && function_exists('brlcad_convert_brlcad2' . $matches[1])) {
@@ -438,7 +438,7 @@ function _brlcad_visible_formats($use_cache = true) {
 }
 
 /**
- * Helper function to retrieve information about the BRLCAD model file of a model node.
+ * Helper function to retrieve information about the BRL-CAD model file of a model node.
  * @param $node node to search for model
  * @return array value of the CCK model_file field (including fid, filepath, filename, etc)
  */
@@ -491,8 +491,8 @@ function _brlcad_node_clear_data(&$node, $delete_metadata, $delete_images, $dele
 }
 
 /**
- * Retrieves the supported BRLCAD versions based on files in the scripts directory.
- * @return array supported BRLCAD versions
+ * Retrieves the supported BRL-CAD versions based on files in the scripts directory.
+ * @return array supported BRL-CAD versions
  */
 function _brlcad_supported_versions() {
   static $supported;

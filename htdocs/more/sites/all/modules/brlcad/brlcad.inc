@@ -2,11 +2,11 @@
 
 /**
  * @file
- * BRLCAD related methods.
+ * BRL-CAD related methods.
  */
 
 /**
- * Runs the BRLCAD metadata extraction and raytracing script, parses and returns the results.
+ * Runs the BRL-CAD metadata extraction and raytracing script, parses and returns the results.
  * @param $model filepath of the model file
  * @param $objects array of object names to raytrace
  * @return array metadata fields and raytrace image paths
@@ -98,7 +98,7 @@ function brlcad_metadata_and_rt($views, $rtsize, $model, $objects = null) {
 }
 
 /**
- * Runs a BRLCAD specific command and returns the output of stdout.
+ * Runs a BRL-CAD specific command and returns the output of stdout.
  *
  * @param $command command line using %s as tokens for arguments (and %% for %)
  * @param $params array of command argument strings
@@ -160,7 +160,7 @@ function brlcad_run_mged_script($script, $model = null, $env = null, $cwd = null
   if(empty($script)) {
     return;
   }
-  $command = 'mged -cr %s 2>&1 < %s';
+  $command = 'mged -c -r %s 2>&1 < %s';
   $params = array($model, $script);
 
   $output = brlcad_run_command($command, $params, $env, $cwd);
@@ -242,7 +242,7 @@ function brlcad_convert_file($input_file, $output_format, $objects = null) {
 function brlcad_convert_brlcad2other($output_format, $input, $output, $objects) {
   $function = 'brlcad_convert_brlcad2' . $output_format;
   if(!function_exists($function)) {
-    watchdog('brlcad', t('Conversion from BRLCAD g format to %format is not supported.', array('%format' => $output_format)));
+    watchdog('brlcad', t('Conversion from BRL-CAD .g format to %format is not supported.', array('%format' => $output_format)));
     return;
   }
   return $function($input, $output, $objects);
@@ -259,7 +259,7 @@ function brlcad_convert_brlcad2other($output_format, $input, $output, $objects) 
 function brlcad_convert_other2brlcad($input_format, $input, $output) {
   $function = 'brlcad_convert_' . $input_format . '2brlcad';
   if(!function_exists($function)) {
-    watchdog('brlcad', t('Conversion from %format format to BRLCAD g format is not supported.', array('%format' => $input_format)));
+    watchdog('brlcad', t('Conversion from %format format to BRL-CAD .g format is not supported.', array('%format' => $input_format)));
     return;
   }
   return $function($input, $output);
