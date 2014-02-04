@@ -1,5 +1,0 @@
-; $Id$
-name = CIANotify
-description = Send CIA notifications on node changes and comments.
-version = "5.x-dev"
-author = elena

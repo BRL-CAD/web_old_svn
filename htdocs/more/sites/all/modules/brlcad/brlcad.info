@@ -1,5 +1,0 @@
-; $Id$
-name = BRL-CAD
-description = "Provides basic integration with the BRL-CAD system."
-version = "5.x-1.x-dev"
-dependencies = flag filefield imagefield
