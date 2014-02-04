@@ -24,22 +24,19 @@ Installation
 
 Assuming that there is a web server installed already, and that php is
 properly configured, it should be sufficient to point a web root url
-to the htdocs/ directory to get the website up and running.  There
-should be no preprocessing or preparation of the website sourcecode
-necessary for it to be useable.  The primary BRL-CAD website should
-automatically be updating to the latest version stored within this
+to the htdocs/ directory and import an SQL file/edit an SQL configuration 
+file to get the website up and running.  There should be no 
+preprocessing or preparation of the website sourcecode necessary for it to 
+be useable other than configuration files.  The primary BRL-CAD website 
+should automatically be updating to the latest version stored within this
 module on a daily basis.
 
-Presently, the sole requirement for install is PHP 4 and a capable web
-server such as Apache.  The website may talk to a local SQL database
-at some point in the future, but there should be no assumptions of a
-need to make an external network connection.
+Presently, the requirements for install are PHP >=5.3.2, a capable web
+server such as Apache, and MySQL >=5.0.2 (Other SQL servers may work.
 
 Scripts to install the website in a SourceForge-similar arrangement
-are included in the misc/ directory.  This includes a cron job and an
-install script.
-
-Installation is described in more detail in the INSTALL file.
+may be included at a later date in the misc/ directory.  This includes a 
+cron job and an install script.
 
 
 Contributing
